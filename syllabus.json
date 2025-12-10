@@ -1,34 +1,92 @@
 [
   {
     "id": 1,
-    "title": "Lekce 1: Zvířata (To je...)",
-    "topic": "Animals + It is (It is a cat, It is a dog)",
+    "level": "A1 - Začátečník",
+    "title": "1. Kdo jsem? (Sloveso TO BE)",
+    "topic": "Verb TO BE (I am, You are, He is)",
     "review_topic": null,
-    "goal": "Naučit se pojmenovat základní zvířata.",
-    "task_type": "vocabulary"
+    "goal": "Představit se a říct, kdo jsem.",
+    "task_type": "drill"
   },
   {
     "id": 2,
-    "title": "Lekce 2: Barvy (Jaké to je?)",
-    "topic": "Colors (Red, Blue, Green)",
-    "review_topic": "Animals (Lekce 1)",
-    "goal": "Spojit zvíře a barvu (It is a red cat).",
-    "task_type": "sentence_building"
+    "level": "A1 - Začátečník",
+    "title": "2. Kde to je? (Předložky IN, ON, UNDER)",
+    "topic": "Prepositions of place",
+    "review_topic": "Verb TO BE",
+    "goal": "Popsat, kde se nachází věci (The cat is on the table).",
+    "task_type": "description"
   },
   {
     "id": 3,
-    "title": "Lekce 3: Jídlo (Mám rád...)",
-    "topic": "I like / I don't like",
-    "review_topic": "Colors (Lekce 2)",
-    "goal": "Říct, co mi chutná a jakou to má barvu (I like red apples).",
-    "task_type": "personal_statement"
+    "level": "A1 - Začátečník",
+    "title": "3. Co mám? (Sloveso HAVE GOT)",
+    "topic": "Verb HAVE GOT (I have got, She has got)",
+    "review_topic": "Animals / Objects",
+    "goal": "Říct, co vlastním (hračky, zvířata).",
+    "task_type": "possession"
   },
   {
     "id": 4,
-    "title": "Lekce 4: Rodina (To je moje...)",
-    "topic": "Family members (Mother, Father, Sister)",
-    "review_topic": "I like (Lekce 3)",
-    "goal": "Představit člena rodiny a co má rád.",
-    "task_type": "storytelling"
+    "level": "A1 - Začátečník",
+    "title": "4. Co umím? (Sloveso CAN)",
+    "topic": "Modal verb CAN / CAN'T",
+    "review_topic": "Action verbs (run, jump, swim)",
+    "goal": "Popsat schopnosti (I can jump but I can't fly).",
+    "task_type": "ability"
+  },
+  {
+    "id": 5,
+    "level": "A1 - Začátečník",
+    "title": "5. Moje rodina (Přivlastňování MY, YOUR)",
+    "topic": "Possessive adjectives (My, Your, His, Her)",
+    "review_topic": "Verb TO BE + Family members",
+    "goal": "Představit rodinu (This is my mother).",
+    "task_type": "presentation"
+  },
+  {
+    "id": 6,
+    "level": "A1 - Začátečník",
+    "title": "6. Právě teď! (Přítomný průběhový)",
+    "topic": "Present Continuous (I am playing)",
+    "review_topic": "Verb TO BE",
+    "goal": "Popsat, co se děje právě v tuto chvíli.",
+    "task_type": "action_description"
+  },
+  {
+    "id": 7,
+    "level": "A1 - Začátečník",
+    "title": "7. Každý den (Přítomný prostý)",
+    "topic": "Present Simple (I play, He plays)",
+    "review_topic": "Days of the week",
+    "goal": "Popsat svou rutinu a zvyky (pozor na -s u on/ona!).",
+    "task_type": "routine"
+  },
+  {
+    "id": 8,
+    "level": "A1 - Začátečník",
+    "title": "8. Otázky? (DO you / DOES he)",
+    "topic": "Questions in Present Simple",
+    "review_topic": "Present Simple",
+    "goal": "Zeptat se kamaráda, co dělá (Do you like pizza?).",
+    "task_type": "interview"
+  },
+  {
+    "id": 9,
+    "level": "A1 - Začátečník",
+    "title": "9. Oblečení a Barvy (Adjectives)",
+    "topic": "Adjectives order (A red t-shirt)",
+    "review_topic": "Colors + Have got",
+    "goal": "Popsat, co má kdo na sobě.",
+    "task_type": "description"
+  },
+  {
+    "id": 10,
+    "level": "A1 - Začátečník",
+    "title": "10. Jídlo a počítání (Some / Any)",
+    "topic": "Countable/Uncountable nouns",
+    "review_topic": "Food vocabulary",
+    "goal": "Říct, že máme nějaká jablka, ale nemáme vodu.",
+    "task_type": "shopping"
   }
 ]
