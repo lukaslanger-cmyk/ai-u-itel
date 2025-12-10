@@ -4,22 +4,31 @@ import asyncio
 import edge_tts
 from groq import Groq
 from streamlit_mic_recorder import mic_recorder
+import io
 
 # --- KONFIGURACE ---
-st.set_page_config(page_title="AI English Buddy", page_icon="🦁")
+st.set_page_config(page_title="AI English Buddy", page_icon="🦁", layout="centered")
 
-# CSS styly pro skrytí zbytečností a hezčí vzhled
+# CSS styly pro hezčí vzhled (Barvy, tlačítka)
 st.markdown("""
 <style>
     .stButton>button {
         width: 100%;
-        border-radius: 10px;
-        height: 3em;
+        border-radius: 12px;
+        height: 3.5em;
         font-weight: bold;
-    }
-    div[data-testid="stMarkdownContainer"] p {
         font-size: 1.1em;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+    .instruction-box {
+        background-color: #f0f8ff;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #1e90ff;
+        margin-bottom: 20px;
+    }
+    h1 { color: #2E86C1; }
+    div[data-testid="stMarkdownContainer"] p { font-size: 1.15em; line-height: 1.6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -32,34 +41,51 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- FUNKCE: LOGIKA ---
+# --- FUNKCE: AUDIO V PAMĚTI (Bez ukládání na disk) ---
+async def generate_audio_memory(text, lang="cs"):
+    """Vygeneruje MP3 přímo do RAM paměti, aby nepadal Streamlit Cloud."""
+    voice = "cs-CZ-VlastaNeural"
+    if lang == "en":
+        voice = "en-US-AnaNeural" # Ana mluví hezky anglicky
+    
+    # ČIŠTĚNÍ TEXTU PRO AUDIO (Oči vidí **, uši slyší čistě)
+    clean_text = text.replace("**", "").replace("*", "").replace("🔴", "").replace("👇", "").replace("#", "")
+    
+    communicate = edge_tts.Communicate(clean_text, voice)
+    mp3_fp = io.BytesIO() # Virtuální soubor v paměti
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            mp3_fp.write(chunk["data"])
+    
+    mp3_fp.seek(0)
+    return mp3_fp
 
+# --- FUNKCE: LOGIKA UČITELE ---
 def load_syllabus():
     try:
         with open('syllabus.json', 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        st.error("Chybí soubor syllabus.json! Nahraj ho na GitHub.")
+        st.error("Chybí soubor syllabus.json!")
         return []
 
 def get_lesson_content(lesson_data):
-    # Prompt pro vytvoření lekce s opakováním
     review_instruction = ""
     if lesson_data.get('review_topic'):
-        review_instruction = f"ZÁROVEŇ do vět zakomponuj opakování z minula: {lesson_data['review_topic']}."
+        review_instruction = f"Zapoj i opakování: {lesson_data['review_topic']}."
 
     prompt = f"""
-    Jsi zábavný učitel angličtiny pro české děti. 
+    Jsi nadšený učitel angličtiny.
     Téma: {lesson_data['topic']}. 
-    Cíl: {lesson_data['goal']}. 
+    Typ úkolu: {lesson_data.get('task_type', 'practice')}.
     {review_instruction}
 
     Tvůj úkol:
-    1. Krátce a vtipně vysvětli novou látku (česky).
-    2. Dej 3 příklady (Anglicky + Český překlad).
-    3. Na konci dej dítěti KONKRÉTNÍ úkol, co má říct. Např: "A teď zkus říct anglicky: To je modrý pes."
+    1. Vysvětli látku česky, jednoduše, používej **tučné písmo** pro důležité věci.
+    2. Dej 3 příklady (Anglicky - Česky).
+    3. Na konci dej jasný úkol: "Řekni anglicky: [věta na překlad]".
     
-    Nepoužívej složité formátování (žádné hvězdičky **).
+    Používej emoji 🦁, 🇬🇧, ✨. Formátuj text přehledně.
     """
     
     completion = client.chat.completions.create(
@@ -75,29 +101,17 @@ def check_student_response(student_text, expected_topic):
     Dítě řeklo: "{student_text}"
 
     Tvůj úkol:
-    1. Zhodnotit, jestli to dává smysl.
-    2. Pokud je to správně: Pochval ho ČESKY.
-    3. Pokud je tam chyba: Vysvětli ji ČESKY a jednoduše.
-    4. DŮLEŽITÉ: Na úplný konec napiš SPRÁVNOU anglickou větu do hranatých závorek, např: [It is a red car].
+    1. Pokud je to správně: Pochval ho ČESKY (nadšeně).
+    2. Pokud je chyba: Vysvětli ji ČESKY a jednoduše.
+    3. Na úplný konec napiš SPRÁVNOU anglickou větu do hranatých závorek, např: [It is a red car].
     
-    Mluv na dítě jako kamarád. Nepoužívej složitá slova.
+    Používej **tučné písmo** pro zvýraznění oprav.
     """
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": prompt}]
     )
     return completion.choices[0].message.content
-
-# --- FUNKCE: AUDIO ---
-
-async def generate_audio(text, filename, lang="cs"):
-    # lang: 'cs' pro Vlastu, 'en' pro Anu
-    voice = "cs-CZ-VlastaNeural"
-    if lang == "en":
-        voice = "en-US-AnaNeural"
-    
-    communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(filename)
 
 # --- HLAVNÍ STRÁNKA ---
 def main():
@@ -107,16 +121,15 @@ def main():
     if not syllabus:
         st.stop()
 
-    # Výběr lekce v postranním panelu
-    lesson_titles = [l['title'] for l in syllabus]
-    selected_index = 0
-    if 'selected_lesson_index' in st.session_state:
-        selected_index = st.session_state.selected_lesson_index
+    # Sidebar s výběrem lekce
+    with st.sidebar:
+        st.header("📚 Učebnice")
+        lesson_titles = [f"{l['title']}" for l in syllabus]
+        selected_lesson_name = st.selectbox("Kam půjdeme dnes?", lesson_titles)
+    
+    current_lesson = next(l for l in syllabus if l['title'] in selected_lesson_name)
 
-    selected_lesson_name = st.sidebar.selectbox("Vyber lekci:", lesson_titles, index=selected_index)
-    current_lesson = next(l for l in syllabus if l['title'] == selected_lesson_name)
-
-    # Inicializace stavu lekce
+    # Session State
     if 'current_lesson_id' not in st.session_state or st.session_state.current_lesson_id != current_lesson['id']:
         st.session_state.current_lesson_id = current_lesson['id']
         st.session_state.lesson_content = None
@@ -125,32 +138,27 @@ def main():
         st.session_state.feedback_audio_en = None
 
     # Tlačítko START
-    if st.button("🚀 Začít lekci"):
-        with st.spinner("Příprava učitele..."):
+    if st.button("🚀 Začít lekci", type="primary"):
+        with st.spinner("Paní učitelka připravuje tabuli..."):
             content = get_lesson_content(current_lesson)
             st.session_state.lesson_content = content
-            st.session_state.feedback = None # Reset feedbacku při nové lekci
+            st.session_state.feedback = None
+            
+            # Přednačtení audia k teorii (volitelné, zatím necháme jen text ať je to rychlé)
 
-    # 1. Zobrazení teorie a úkolu
+    # 1. Zobrazení teorie
     if st.session_state.lesson_content:
-        st.info("👇 Přečti si zadání od učitele:")
         st.markdown(st.session_state.lesson_content)
-        st.divider()
+        st.markdown("---")
 
-        # 2. Instrukce a Nahrávání
-        st.subheader("🎤 Teď jsi na řadě ty!")
+        # 2. Instrukce
+        st.markdown('<div class="instruction-box"><h5>🎤 Tvůj úkol:</h5><ol><li>Klikni na <b>Nahrát odpověď</b></li><li>Řekni větu anglicky</li><li>Klikni na <b>Stop</b></li></ol></div>', unsafe_allow_html=True)
+
+        # 3. Nahrávání
+        col1, col2 = st.columns([1, 4]) # Zarovnání
+        with col1:
+             st.write(" ") # Spacer
         
-        # Žlutý rámeček s jasnou instrukcí
-        st.warning("""
-        **INSTRUKCE:**
-        1. Klikni na **🔴 Nahrát odpověď**.
-        2. Řekni větu anglicky (např. 'It is a red dog').
-        3. Klikni na **⏹️ Stop**.
-        4. Čekej na hodnocení.
-        """)
-
-        # Komponenta pro nahrávání (Česká tlačítka!)
-        # key='recorder' zajistí, že se to nepřemazává
         audio_data = mic_recorder(
             start_prompt="🔴 Nahrát odpověď",
             stop_prompt="⏹️ Stop (Odeslat)",
@@ -160,64 +168,63 @@ def main():
             key="recorder"
         )
 
-        # 3. Zpracování nahrávky
+        # 4. Vyhodnocení
         if audio_data:
-            st.success("Odesílám učiteli...")
-            
-            # Uložení a přepis
-            with open("input.wav", "wb") as f:
-                f.write(audio_data['bytes'])
-            
-            with open("input.wav", "rb") as file:
+            with st.spinner("Poslouchám a opravuji..."):
+                # Uložení do RAM pro whisper
+                audio_bytes = audio_data['bytes']
+                # Trik pro Whisper API (potřebuje 'name')
+                audio_file = io.BytesIO(audio_bytes)
+                audio_file.name = "audio.wav"
+                
                 try:
-                    # Přepis (STT)
+                    # A) Přepis
                     transcription = client.audio.transcriptions.create(
-                        file=(file.name, file.read()),
+                        file=(audio_file.name, audio_file.read()),
                         model="whisper-large-v3-turbo",
                         response_format="text"
                     )
-                    st.write(f"🗣️ Slyšel jsem: **{transcription}**")
+                    st.info(f"🗣️ Slyšel jsem: **{transcription}**")
 
-                    # Kontrola (AI Teacher)
+                    # B) Kontrola
                     raw_feedback = check_student_response(transcription, current_lesson['topic'])
                     
-                    # Rozparsování feedbacku (hledáme [Větu v závorce])
+                    # C) Analýza odpovědi (Hledáme [EN])
                     import re
                     match = re.search(r'\[(.*?)\]', raw_feedback)
                     
-                    feedback_text_cs = raw_feedback.replace('[', '').replace(']', '') # Vyčistíme text pro zobrazení
+                    feedback_text_cs = raw_feedback.replace('[', '').replace(']', '') 
                     correct_sentence_en = match.group(1) if match else None
                     
-                    # Pokud máme anglickou větu, odstraníme ji z českého textu, aby se nečetla dvakrát
                     if correct_sentence_en:
                         feedback_text_cs = feedback_text_cs.replace(correct_sentence_en, "")
 
-                    # Uložení do session state
                     st.session_state.feedback = feedback_text_cs
                     st.session_state.correct_en = correct_sentence_en
-
-                    # Generování audia (vytvoříme 2 soubory: český pokec a anglický vzor)
-                    asyncio.run(generate_audio(feedback_text_cs, "feedback_cs.mp3", "cs"))
+                    
+                    # D) Generování audia do RAM (Asyncio run)
+                    st.session_state.audio_cs = asyncio.run(generate_audio_memory(feedback_text_cs, "cs"))
                     if correct_sentence_en:
-                        asyncio.run(generate_audio(correct_sentence_en, "correct_en.mp3", "en"))
+                        st.session_state.audio_en = asyncio.run(generate_audio_memory(correct_sentence_en, "en"))
 
                 except Exception as e:
-                    st.error(f"Chyba: {e}")
+                    st.error(f"Chybička se vloudila: {e}")
 
-    # 4. Zobrazení Feedbacku (Odděleně, aby nezmizel při překreslení)
+    # 5. Zobrazení Feedbacku
     if st.session_state.get('feedback'):
-        st.divider()
-        st.markdown(f"### 👨‍🏫 Hodnocení:")
-        st.write(st.session_state.feedback)
+        st.markdown("### 👩‍🏫 Hodnocení:")
+        st.success(st.session_state.feedback) # Zelený rámeček, podporuje formátování
         
-        # Přehrát české hodnocení
-        st.audio("feedback_cs.mp3", format='audio/mp3', autoplay=True)
+        if st.session_state.get('audio_cs'):
+            st.audio(st.session_state.audio_cs, format='audio/mp3', autoplay=True)
 
-        # Pokud existuje oprava/vzor v angličtině
         if st.session_state.get('correct_en'):
+            st.markdown("---")
             st.markdown(f"**👂 Poslechni si správnou výslovnost:**")
-            st.success(f"🇬🇧 {st.session_state.correct_en}")
-            st.audio("correct_en.mp3", format='audio/mp3')
+            st.info(f"🇬🇧 **{st.session_state.correct_en}**")
+            
+            if st.session_state.get('audio_en'):
+                st.audio(st.session_state.audio_en, format='audio/mp3')
 
 if __name__ == "__main__":
     main()
