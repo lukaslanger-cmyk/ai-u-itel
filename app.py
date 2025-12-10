@@ -1,5 +1,4 @@
 import streamlit as st
-import json
 import asyncio
 import edge_tts
 from groq import Groq
@@ -7,10 +6,10 @@ from streamlit_mic_recorder import mic_recorder
 import io
 import re
 
-# --- KONFIGURACE ---
+# --- 1. KONFIGURACE APLIKACE ---
 st.set_page_config(page_title="AI English Buddy", page_icon="🦁", layout="centered")
 
-# CSS Design
+# Styly
 st.markdown("""
 <style>
     .stButton>button {
@@ -33,7 +32,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# API Check
+# Kontrola API klíče
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except:
@@ -42,7 +41,82 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# DEFINICE TYPŮ ÚKOLŮ
+# --- 2. UČEBNICE (VLOŽENÁ PŘÍMO V KÓDU) ---
+# Už nepotřebuješ externí soubor syllabus.json
+SYLLABUS_DATA = [
+  {
+    "id": 1,
+    "title": "1. Kdo jsem? (Sloveso TO BE)",
+    "topic": "Verb TO BE (I am, You are, He is)",
+    "review_topic": None,
+    "goal": "Představit se a říct, kdo jsem."
+  },
+  {
+    "id": 2,
+    "title": "2. Kde to je? (Předložky IN, ON)",
+    "topic": "Prepositions of place (in, on, under)",
+    "review_topic": "Verb TO BE",
+    "goal": "Popsat, kde se nachází věci."
+  },
+  {
+    "id": 3,
+    "title": "3. Co mám? (HAVE GOT)",
+    "topic": "Verb HAVE GOT (I have got, She has got)",
+    "review_topic": "Animals / Objects",
+    "goal": "Říct, co vlastním (hračky, zvířata)."
+  },
+  {
+    "id": 4,
+    "title": "4. Co umím? (CAN)",
+    "topic": "Modal verb CAN / CAN'T",
+    "review_topic": "Action verbs",
+    "goal": "Popsat schopnosti (I can jump)."
+  },
+  {
+    "id": 5,
+    "title": "5. Moje rodina (MY, YOUR)",
+    "topic": "Possessive adjectives (My, Your, His)",
+    "review_topic": "Family members",
+    "goal": "Představit členy rodiny."
+  },
+  {
+    "id": 6,
+    "title": "6. Co se děje? (Průběhový čas)",
+    "topic": "Present Continuous (I am playing)",
+    "review_topic": "Verb TO BE",
+    "goal": "Popsat činnost, která se děje právě teď."
+  },
+  {
+    "id": 7,
+    "title": "7. Každý den (Přítomný čas)",
+    "topic": "Present Simple (I play, He plays)",
+    "review_topic": "Days of the week",
+    "goal": "Popsat zvyky a rutinu."
+  },
+  {
+    "id": 8,
+    "title": "8. Otázky (DO you...?)",
+    "topic": "Questions in Present Simple",
+    "review_topic": "Present Simple",
+    "goal": "Zeptat se kamaráda."
+  },
+  {
+    "id": 9,
+    "title": "9. Oblečení (Barvy a Vlastnosti)",
+    "topic": "Adjectives (Red t-shirt, Big shoes)",
+    "review_topic": "Colors",
+    "goal": "Popsat oblečení."
+  },
+  {
+    "id": 10,
+    "title": "10. Počítání a Jídlo (SOME / ANY)",
+    "topic": "Countable vs Uncountable",
+    "review_topic": "Food",
+    "goal": "Nakupování a jídlo."
+  }
+]
+
+# Definice typů úkolů (Ping-Pong metoda)
 TASK_TYPES = {
     1: {"type": "listen", "name": "👂 Krok 1: Poslech (Co to znamená?)", "lang_expect": "cs"},
     2: {"type": "imitate", "name": "🦜 Krok 2: Papoušek (Opakuj přesně)", "lang_expect": "en"},
@@ -51,10 +125,10 @@ TASK_TYPES = {
     5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Komplexní úkol)", "lang_expect": "en"}
 }
 
-# --- FUNKCE ---
+# --- 3. POMOCNÉ FUNKCE ---
 
 async def generate_audio_memory(text, lang="en"):
-    """Generuje audio bezpečně."""
+    """Generuje audio bezpečně do RAM."""
     try:
         voice = "en-US-AnaNeural" if lang == "en" else "cs-CZ-VlastaNeural"
         clean_text = text.replace("**", "").replace("*", "").replace("`", "").replace("🦁", "")
@@ -68,20 +142,18 @@ async def generate_audio_memory(text, lang="en"):
     except:
         return None
 
-def load_syllabus():
-    try:
-        with open('syllabus.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return []
-
 def get_theory(lesson_data):
+    """Generuje výklad učitele."""
     prompt = f"Jsi učitel. Téma: {lesson_data['topic']}. Vysvětli látku česky, jednoduše pro děti. Dej 3 příklady."
-    return client.chat.completions.create(
-        model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
-    ).choices[0].message.content
+    try:
+        return client.chat.completions.create(
+            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
+        ).choices[0].message.content
+    except:
+        return "Omlouvám se, učitel si zapomněl poznámky. Zkus to znovu."
 
 def generate_task_data(lesson_data, step_number):
+    """Generuje zadání úkolu."""
     task_type = TASK_TYPES[step_number]["type"]
     prompt = f"""
     Generuj cvičení. Téma: {lesson_data['topic']}. Typ: {task_type}.
@@ -94,44 +166,41 @@ def generate_task_data(lesson_data, step_number):
     
     ODPOVĚZ JEN: PRVNÍ_ČÁST|DRUHÁ_ČÁST
     """
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
-    ).choices[0].message.content
-    
     try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
+        ).choices[0].message.content
         parts = response.split('|')
         return {"primary": parts[0].strip(), "secondary": parts[1].strip() if len(parts)>1 else "", "type": task_type}
     except:
-        return {"primary": "Error", "secondary": "", "type": "error"}
+        return {"primary": "Error loading task", "secondary": "", "type": "error"}
 
 def evaluate_student(student_text, task_data, task_type):
+    """Hodnotí odpověď žáka."""
     prompt = f"Úkol: {task_type}. Cíl: {task_data['primary']}. Student řekl: {student_text}. Ohodnoť česky, vysvětli chyby. Na konec dej [Correct English Sentence]."
-    return client.chat.completions.create(
-        model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
-    ).choices[0].message.content
+    try:
+        return client.chat.completions.create(
+            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
+        ).choices[0].message.content
+    except:
+        return "Chyba při hodnocení."
 
-# --- HLAVNÍ LOGIKA ---
+# --- 4. HLAVNÍ LOGIKA APLIKACE ---
 def main():
     st.title("🦁 AI English Buddy")
-
-    syllabus = load_syllabus()
-    if not syllabus:
-        st.error("Chybí syllabus.json!")
-        st.stop()
 
     # Sidebar
     with st.sidebar:
         st.header("🗂️ Lekce")
-        lesson_titles = [l['title'] for l in syllabus]
+        lesson_titles = [l['title'] for l in SYLLABUS_DATA]
         selected_lesson = st.selectbox("Vyber lekci:", lesson_titles)
         if st.button("🔄 Restartovat lekci"):
             st.session_state.step = 0
             st.rerun()
 
-    current_lesson = next(l for l in syllabus if l['title'] == selected_lesson)
+    current_lesson = next(l for l in SYLLABUS_DATA if l['title'] == selected_lesson)
 
-    # --- BEZPEČNÁ INICIALIZACE STAVU (THE FIX) ---
-    # Toto zajistí, že proměnné vždy existují
+    # --- BEZPEČNÁ INICIALIZACE (FIX) ---
     if 'step' not in st.session_state:
         st.session_state.step = 0
     if 'current_lesson_id' not in st.session_state:
@@ -201,7 +270,8 @@ def main():
                 st.rerun()
         else:
             lang = task_info["lang_expect"]
-            audio_data = mic_recorder(start_prompt=f"🔴 Nahrát ({lang.upper()})", stop_prompt="⏹️ Odeslat", key=f"rec_{step}")
+            # Dynamický klíč pro nahrávátko, aby se neresetovalo předčasně
+            audio_data = mic_recorder(start_prompt=f"🔴 Nahrát ({lang.upper()})", stop_prompt="⏹️ Odeslat", key=f"rec_{step}_{current_lesson['id']}")
             
             if audio_data:
                 with st.spinner("Vyhodnocuji..."):
