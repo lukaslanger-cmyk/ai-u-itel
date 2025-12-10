@@ -28,7 +28,7 @@ def get_theory(lesson_data):
     Vysvětli látku česky, jednoduše, s emoji. Dej 3 příklady (EN/CZ).
     """
     completion = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": prompt}],
         temperature=0.3
     )
@@ -40,7 +40,7 @@ def check_answer(student_text, expected_topic):
     Je to gramaticky správně? Pokud ne, oprav ho česky. Pokud ano, pochval anglicky.
     """
     completion = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="llama-3.3-70b-versatile",
         messages=[{"role": "system", "content": prompt}]
     )
     return completion.choices[0].message.content
@@ -104,4 +104,5 @@ def main():
                     st.error(f"Chyba při zpracování: {e}")
 
 if __name__ == "__main__":
+
     main()
