@@ -1,30 +1,34 @@
 [
   {
     "id": 1,
-    "title": "Lekce 1: Seznámení a sloveso BÝT",
-    "topic": "Verb TO BE (I am, You are)",
-    "goal": "Naučit se říct kdo jsem a jak se mám.",
-    "context_compare": null
+    "title": "Lekce 1: Zvířata (To je...)",
+    "topic": "Animals + It is (It is a cat, It is a dog)",
+    "review_topic": null,
+    "goal": "Naučit se pojmenovat základní zvířata.",
+    "task_type": "vocabulary"
   },
   {
     "id": 2,
-    "title": "Lekce 2: Co právě dělám? (Přítomný průběhový)",
-    "topic": "Present Continuous (I am playing, She is sleeping)",
-    "goal": "Popis činnosti, která se děje teď.",
-    "context_compare": "Verb TO BE (Lesson 1)"
+    "title": "Lekce 2: Barvy (Jaké to je?)",
+    "topic": "Colors (Red, Blue, Green)",
+    "review_topic": "Animals (Lekce 1)",
+    "goal": "Spojit zvíře a barvu (It is a red cat).",
+    "task_type": "sentence_building"
   },
   {
     "id": 3,
-    "title": "Lekce 3: Zvířata a barvy",
-    "topic": "Adjectives and Nouns (The cat is black)",
-    "goal": "Spojování podstatných a přídavných jmen.",
-    "context_compare": null
+    "title": "Lekce 3: Jídlo (Mám rád...)",
+    "topic": "I like / I don't like",
+    "review_topic": "Colors (Lekce 2)",
+    "goal": "Říct, co mi chutná a jakou to má barvu (I like red apples).",
+    "task_type": "personal_statement"
   },
   {
     "id": 4,
-    "title": "Lekce 4: Minulý čas (Pravidelná slovesa)",
-    "topic": "Past Simple Regular (-ed endings)",
-    "goal": "Vyprávění o tom, co se stalo včera.",
-    "context_compare": "Present Continuous (Lesson 2) - vysvětli rozdíl mezi TEĎ a VČERA"
+    "title": "Lekce 4: Rodina (To je moje...)",
+    "topic": "Family members (Mother, Father, Sister)",
+    "review_topic": "I like (Lekce 3)",
+    "goal": "Představit člena rodiny a co má rád.",
+    "task_type": "storytelling"
   }
 ]
