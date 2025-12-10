@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "title": "Lekce 1: Seznámení a sloveso BÝT",
+    "topic": "Verb TO BE (I am, You are)",
+    "goal": "Naučit se říct kdo jsem a jak se mám.",
+    "context_compare": null
+  },
+  {
+    "id": 2,
+    "title": "Lekce 2: Co právě dělám? (Přítomný průběhový)",
+    "topic": "Present Continuous (I am playing, She is sleeping)",
+    "goal": "Popis činnosti, která se děje teď.",
+    "context_compare": "Verb TO BE (Lesson 1)"
+  },
+  {
+    "id": 3,
+    "title": "Lekce 3: Zvířata a barvy",
+    "topic": "Adjectives and Nouns (The cat is black)",
+    "goal": "Spojování podstatných a přídavných jmen.",
+    "context_compare": null
+  },
+  {
+    "id": 4,
+    "title": "Lekce 4: Minulý čas (Pravidelná slovesa)",
+    "topic": "Past Simple Regular (-ed endings)",
+    "goal": "Vyprávění o tom, co se stalo včera.",
+    "context_compare": "Present Continuous (Lesson 2) - vysvětli rozdíl mezi TEĎ a VČERA"
+  }
+]
