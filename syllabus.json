@@ -1,92 +1,72 @@
 [
   {
     "id": 1,
-    "level": "A1 - Začátečník",
     "title": "1. Kdo jsem? (Sloveso TO BE)",
     "topic": "Verb TO BE (I am, You are, He is)",
     "review_topic": null,
-    "goal": "Představit se a říct, kdo jsem.",
-    "task_type": "drill"
+    "goal": "Představit se a říct, kdo jsem."
   },
   {
     "id": 2,
-    "level": "A1 - Začátečník",
-    "title": "2. Kde to je? (Předložky IN, ON, UNDER)",
-    "topic": "Prepositions of place",
+    "title": "2. Kde to je? (Předložky IN, ON)",
+    "topic": "Prepositions of place (in, on, under)",
     "review_topic": "Verb TO BE",
-    "goal": "Popsat, kde se nachází věci (The cat is on the table).",
-    "task_type": "description"
+    "goal": "Popsat, kde se nachází věci."
   },
   {
     "id": 3,
-    "level": "A1 - Začátečník",
-    "title": "3. Co mám? (Sloveso HAVE GOT)",
+    "title": "3. Co mám? (HAVE GOT)",
     "topic": "Verb HAVE GOT (I have got, She has got)",
     "review_topic": "Animals / Objects",
-    "goal": "Říct, co vlastním (hračky, zvířata).",
-    "task_type": "possession"
+    "goal": "Říct, co vlastním (hračky, zvířata)."
   },
   {
     "id": 4,
-    "level": "A1 - Začátečník",
-    "title": "4. Co umím? (Sloveso CAN)",
+    "title": "4. Co umím? (CAN)",
     "topic": "Modal verb CAN / CAN'T",
-    "review_topic": "Action verbs (run, jump, swim)",
-    "goal": "Popsat schopnosti (I can jump but I can't fly).",
-    "task_type": "ability"
+    "review_topic": "Action verbs",
+    "goal": "Popsat schopnosti (I can jump)."
   },
   {
     "id": 5,
-    "level": "A1 - Začátečník",
-    "title": "5. Moje rodina (Přivlastňování MY, YOUR)",
-    "topic": "Possessive adjectives (My, Your, His, Her)",
-    "review_topic": "Verb TO BE + Family members",
-    "goal": "Představit rodinu (This is my mother).",
-    "task_type": "presentation"
+    "title": "5. Moje rodina (MY, YOUR)",
+    "topic": "Possessive adjectives (My, Your, His)",
+    "review_topic": "Family members",
+    "goal": "Představit členy rodiny."
   },
   {
     "id": 6,
-    "level": "A1 - Začátečník",
-    "title": "6. Právě teď! (Přítomný průběhový)",
+    "title": "6. Co se děje? (Průběhový čas)",
     "topic": "Present Continuous (I am playing)",
     "review_topic": "Verb TO BE",
-    "goal": "Popsat, co se děje právě v tuto chvíli.",
-    "task_type": "action_description"
+    "goal": "Popsat činnost, která se děje právě teď."
   },
   {
     "id": 7,
-    "level": "A1 - Začátečník",
-    "title": "7. Každý den (Přítomný prostý)",
+    "title": "7. Každý den (Přítomný čas)",
     "topic": "Present Simple (I play, He plays)",
     "review_topic": "Days of the week",
-    "goal": "Popsat svou rutinu a zvyky (pozor na -s u on/ona!).",
-    "task_type": "routine"
+    "goal": "Popsat zvyky a rutinu."
   },
   {
     "id": 8,
-    "level": "A1 - Začátečník",
-    "title": "8. Otázky? (DO you / DOES he)",
+    "title": "8. Otázky (DO you...?)",
     "topic": "Questions in Present Simple",
     "review_topic": "Present Simple",
-    "goal": "Zeptat se kamaráda, co dělá (Do you like pizza?).",
-    "task_type": "interview"
+    "goal": "Zeptat se kamaráda."
   },
   {
     "id": 9,
-    "level": "A1 - Začátečník",
-    "title": "9. Oblečení a Barvy (Adjectives)",
-    "topic": "Adjectives order (A red t-shirt)",
-    "review_topic": "Colors + Have got",
-    "goal": "Popsat, co má kdo na sobě.",
-    "task_type": "description"
+    "title": "9. Oblečení (Barvy a Vlastnosti)",
+    "topic": "Adjectives (Red t-shirt, Big shoes)",
+    "review_topic": "Colors",
+    "goal": "Popsat oblečení."
   },
   {
     "id": 10,
-    "level": "A1 - Začátečník",
-    "title": "10. Jídlo a počítání (Some / Any)",
-    "topic": "Countable/Uncountable nouns",
-    "review_topic": "Food vocabulary",
-    "goal": "Říct, že máme nějaká jablka, ale nemáme vodu.",
-    "task_type": "shopping"
+    "title": "10. Počítání a Jídlo (SOME / ANY)",
+    "topic": "Countable vs Uncountable",
+    "review_topic": "Food",
+    "goal": "Nakupování a jídlo."
   }
 ]
