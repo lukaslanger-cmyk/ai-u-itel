@@ -9,7 +9,7 @@ import time
 # --- 1. KONFIGURACE APLIKACE ---
 st.set_page_config(page_title="AI English Buddy", page_icon="🦁", layout="centered")
 
-# CSS Styly - Čistý design pro děti
+# CSS Styly
 st.markdown("""
 <style>
     .stButton>button {
@@ -32,7 +32,6 @@ st.markdown("""
         border: 2px solid #87CEEB;
         text-align: center;
         margin-bottom: 20px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .feedback-box-success {
         background-color: #e8f5e9;
@@ -40,6 +39,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #4caf50;
         margin-top: 10px;
+        text-align: left;
     }
     .feedback-box-error {
         background-color: #ffebee;
@@ -47,13 +47,13 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #f44336;
         margin-top: 10px;
+        text-align: left;
     }
-    h1 { color: #2E86C1; text-align: center; font-family: 'Comic Sans MS', sans-serif; }
-    h3 { margin-bottom: 0px; }
+    h1 { color: #2E86C1; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# Kontrola API klíče
+# API Check
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except:
@@ -62,7 +62,7 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- 2. KOMPLETNÍ UČEBNICE (10 LEKCÍ) ---
+# --- 2. UČEBNICE (HARDCODED - ABY SE NEZTRATILA) ---
 SYLLABUS_DATA = [
   {"id": 1, "title": "1. Kdo jsem? (Sloveso TO BE)", "topic": "Verb TO BE (I am, You are, He is)", "goal": "Představit se a říct, kdo jsem."},
   {"id": 2, "title": "2. Kde to je? (IN, ON, UNDER)", "topic": "Prepositions (The cat is on the table)", "goal": "Popsat pozici věcí."},
@@ -76,7 +76,7 @@ SYLLABUS_DATA = [
   {"id": 10, "title": "10. Jídlo (I like / I don't like)", "topic": "Food vocabulary", "goal": "Říct, co mi chutná."}
 ]
 
-# Definice typů úkolů
+# Typy úkolů
 TASK_TYPES = {
     1: {"type": "listen", "name": "👂 Krok 1: Poslech", "instruction": "Poslouchej anglickou větu a řekni česky, co to znamená.", "lang_rec": "cs"},
     2: {"type": "imitate", "name": "🦜 Krok 2: Papoušek", "instruction": "Přečti a zopakuj anglickou větu přesně podle vzoru.", "lang_rec": "en"},
@@ -85,17 +85,30 @@ TASK_TYPES = {
     5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight", "instruction": "Přelož tuto složitější větu.", "lang_rec": "en"}
 }
 
-# --- 3. POMOCNÉ FUNKCE ---
+# --- 3. FUNKCE ---
+
+def init_session_state():
+    """Záchranná brzda - Inicializuje proměnné, aby aplikace nespadla."""
+    defaults = {
+        'step': 0,
+        'current_lesson_id': 1,
+        'theory_content': None,
+        'task_data': None,
+        'feedback': None,
+        'task_audio': None
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 def reset_lesson():
-    """Callback pro okamžitý reset."""
+    """Callback pro restart."""
     st.session_state.step = 0
     st.session_state.task_data = None
     st.session_state.feedback = None
     st.session_state.theory_content = None
 
 async def generate_audio_memory(text, lang="en"):
-    """Generuje audio bezpečně do RAM."""
     try:
         voice = "en-US-AnaNeural" if lang == "en" else "cs-CZ-VlastaNeural"
         clean_text = text.replace("**", "").replace("*", "").replace("`", "").replace("🦁", "")
@@ -110,42 +123,38 @@ async def generate_audio_memory(text, lang="en"):
         return None
 
 def get_theory(lesson_data):
-    """Generuje výklad."""
     prompt = f"""
-    Jsi učitel angličtiny pro malé děti (8 let). Téma: {lesson_data['topic']}.
-    Vysvětli látku česky, velmi jednoduše. Žádná složitá gramatika.
-    Uveď 3 krátké příklady (EN - CZ).
-    Buď stručný.
+    Jsi učitel pro děti (8 let). Téma: {lesson_data['topic']}.
+    Vysvětli látku česky, jednoduše. Žádné složitosti.
+    Uveď 3 příklady (EN - CZ).
     """
     try:
         return client.chat.completions.create(
             model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
         ).choices[0].message.content
     except:
-        return "Učitel si rovná poznámky... Zkus to znovu."
+        return "Chyba při načítání teorie."
 
 def generate_task_data(lesson_data, step_number):
-    """Generuje zadání úkolu - OMEZENO PRO DĚTI."""
     task_type = TASK_TYPES[step_number]["type"]
     topic = lesson_data['topic']
     
-    # PŘÍSNÉ INSTRUKCE PRO AI, ABY NEVYMÝŠLELA MANAŽERY
-    constraints = "Používej POUZE základní slovní zásobu pro děti (A1 level). Žádný business jazyk. Věty maximálně na 6 slov."
+    constraints = "Používej POUZE slovní zásobu pro děti (A1). Žádný business jazyk."
     
     prompt = f"""
-    Generuj cvičení pro dítě. Téma: {topic}. Typ: {task_type}. {constraints}
+    Generuj cvičení. Téma: {topic}. Typ: {task_type}. {constraints}
     
-    POKUD TYP 'listen': Vygeneruj jednoduchou EN větu a CZ překlad. Formát: EN|CZ
-    POKUD TYP 'imitate': Vygeneruj jednoduchou EN větu. Formát: EN|CZ_VYZNAM
-    POKUD TYP 'translate': Vygeneruj CZ větu a EN překlad. Formát: CZ|EN
-    POKUD TYP 'respond': Vygeneruj jednoduchou EN otázku (např. What is your name?). Formát: EN_OTAZKA|TYPE_ANSWER
-    POKUD TYP 'boss': Vygeneruj souvětí (např. I am happy and he is sad). Formát: CZ|EN
+    TYP 'listen': EN věta + CZ překlad (EN|CZ)
+    TYP 'imitate': EN věta (EN|CZ_VYZNAM)
+    TYP 'translate': CZ věta + EN překlad (CZ|EN)
+    TYP 'respond': EN otázka (EN_OTAZKA|ANSWER_TYPE)
+    TYP 'boss': CZ souvětí + EN překlad (CZ|EN)
     
-    ODPOVĚZ JEN: PRVNÍ_ČÁST|DRUHÁ_ČÁST
+    ODPOVĚZ JEN: PART1|PART2
     """
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}], temperature=0.3 # Nízká teplota pro menší kreativitu
+            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}], temperature=0.3
         ).choices[0].message.content
         parts = response.split('|')
         return {"primary": parts[0].strip(), "secondary": parts[1].strip() if len(parts)>1 else "", "type": task_type}
@@ -153,33 +162,29 @@ def generate_task_data(lesson_data, step_number):
         return {"primary": "Error", "secondary": "", "type": "error"}
 
 def evaluate_student(student_text, task_data, task_type):
-    """Hodnotí odpověď žáka - BEZ BUZERACE ZA TEČKY."""
     prompt = f"""
-    Jsi hodný učitel pro děti. 
-    Úkol: {task_type}. 
-    Cíl (Target): "{task_data['primary']}" (nebo překlad "{task_data['secondary']}").
-    Dítě řeklo (Transcript): "{student_text}".
+    Jsi hodný učitel. Úkol: {task_type}. Cíl: "{task_data['primary']}". 
+    Dítě řeklo: "{student_text}".
     
-    INSTRUKCE:
-    1. Ignoruj interpunkci (tečky, čárky) v přepisu řeči.
-    2. Pokud dítě řeklo stažený tvar (I'm) místo plného (I am), JE TO SPRÁVNĚ.
-    3. Pokud je úkol 'respond', akceptuj jakoukoliv smysluplnou odpověď v angličtině.
-    4. Pokud je úkol 'listen', dítě mělo říct český význam.
+    1. Ignoruj interpunkci.
+    2. Pokud je to významově správně, pochval.
+    3. Vysvětli chyby česky.
     
-    Odpověz ve formátu:
-    VERDIKT: (Perfektní / Dobře / Zkus to znovu)
-    VYSVĚTLENÍ: (Česky, stručně, pro dítě. Pokud je chyba, vysvětli proč.)
-    CORRECT: [Zde napiš správnou anglickou větu, pokud je to relevantní]
+    Odpověz: VERDIKT (Perfektní/Dobře/Zkus to)|VYSVĚTLENÍ|CORRECT_EN
     """
     try:
-        return client.chat.completions.create(
+        resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}]
         ).choices[0].message.content
+        return resp # Vrátíme celý string a zpracujeme v UI
     except:
-        return "Chyba při hodnocení."
+        return "Chyba|Zkus to znovu.|-"
 
-# --- 4. HLAVNÍ LOGIKA APLIKACE ---
+# --- 4. HLAVNÍ LOGIKA ---
 def main():
+    # 1. INICIALIZACE STAVU (MUST BE FIRST)
+    init_session_state()
+
     st.title("🦁 AI English Buddy")
 
     # Sidebar
@@ -187,49 +192,42 @@ def main():
         st.header("🗂️ Lekce")
         lesson_titles = [l['title'] for l in SYLLABUS_DATA]
         selected_lesson = st.selectbox("Vyber lekci:", lesson_titles)
-        # Callback reset zajistí okamžitou reakci
         st.button("🔄 Restartovat lekci", on_click=reset_lesson)
 
-    current_lesson = next(l for l in SYLLABUS_DATA if l['title'] == selected_lesson)
+    # Určení aktuální lekce
+    current_lesson_obj = next(l for l in SYLLABUS_DATA if l['title'] == selected_lesson)
 
-    # Inicializace
-    if 'step' not in st.session_state: st.session_state.step = 0
-    if 'current_lesson_id' not in st.session_state: st.session_state.current_lesson_id = current_lesson['id']
-    
-    # Změna lekce -> Auto Reset
-    if st.session_state.current_lesson_id != current_lesson['id']:
-        st.session_state.current_lesson_id = current_lesson['id']
+    # Detekce změny lekce
+    if st.session_state.current_lesson_id != current_lesson_obj['id']:
+        st.session_state.current_lesson_id = current_lesson_obj['id']
         reset_lesson()
         st.rerun()
 
-    # --- KROK 0: TEORIE ---
+    # KROK 0: TEORIE
     if st.session_state.step == 0:
-        st.markdown(f"## 🎓 {current_lesson['title']}")
+        st.markdown(f"## 🎓 {current_lesson_obj['title']}")
         if not st.session_state.theory_content:
             with st.spinner("Příprava výkladu..."):
-                st.session_state.theory_content = get_theory(current_lesson)
+                st.session_state.theory_content = get_theory(current_lesson_obj)
         
         st.info(st.session_state.theory_content)
         if st.button("Jdeme trénovat! 🚀", type="primary"):
             st.session_state.step = 1
             st.rerun()
 
-    # --- KROKY 1-5: TRÉNINK ---
+    # KROKY 1-5
     elif st.session_state.step <= 5:
         step = st.session_state.step
         task_info = TASK_TYPES[step]
-        
-        # Progress bar
         st.progress(step/5, text=f"{task_info['name']}")
 
-        # 1. Generování zadání (pokud není)
+        # Generování zadání
         if not st.session_state.task_data:
             with st.spinner("Vymýšlím úkol..."):
-                data = generate_task_data(current_lesson, step)
+                data = generate_task_data(current_lesson_obj, step)
                 st.session_state.task_data = data
                 st.session_state.feedback = None
                 
-                # Audio se generuje VŽDY u kroku 1 a 2, a volitelně u 4
                 if data["type"] in ["listen", "imitate", "respond"]:
                     st.session_state.task_audio = asyncio.run(generate_audio_memory(data["primary"], "en"))
                 else:
@@ -237,55 +235,48 @@ def main():
 
         data = st.session_state.task_data
         
-        # 2. Zobrazení úkolu (UI)
+        # UI Zadání
         st.markdown(f'<div class="task-box"><h3>{task_info["name"]}</h3><p style="color:gray">{task_info["instruction"]}</p>', unsafe_allow_html=True)
         
-        # Specifické zobrazení podle typu
         if data["type"] == "listen":
-            # Text je skrytý, jen audio
-            if st.session_state.task_audio:
-                st.audio(st.session_state.task_audio, format='audio/mp3')
-            else:
-                st.error("Chyba audia. Zkus restart.")
-            st.write("❓ **Co tato věta znamená česky?**")
-            
+            if st.session_state.task_audio: st.audio(st.session_state.task_audio, format='audio/mp3')
+            st.write("❓ **Co to znamená česky?**")
         elif data["type"] == "imitate":
             st.markdown(f"### 🗣️ {data['primary']}")
-            if st.session_state.task_audio:
-                st.audio(st.session_state.task_audio, format='audio/mp3')
-                
+            if st.session_state.task_audio: st.audio(st.session_state.task_audio, format='audio/mp3')
         elif data["type"] == "translate":
             st.markdown(f"### 🇨🇿 {data['primary']}")
-            
         elif data["type"] == "respond":
             st.markdown(f"### ❓ {data['primary']}")
-            if st.session_state.task_audio:
-                st.audio(st.session_state.task_audio, format='audio/mp3')
-        
+            if st.session_state.task_audio: st.audio(st.session_state.task_audio, format='audio/mp3')
         elif data["type"] == "boss":
             st.markdown(f"### 🇨🇿 {data['primary']}")
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 3. Sekce Odpovědi
+        # UI Feedback / Nahrávání
         if st.session_state.feedback:
-            # Zobrazení výsledku
-            is_good = "Perfektní" in st.session_state.feedback or "Dobře" in st.session_state.feedback
+            # Rozparsování odpovědi evaluátora (Verdikt|Vysvětlení|Correct)
+            parts = st.session_state.feedback.split('|')
+            verdict = parts[0] if len(parts) > 0 else "Hodnocení"
+            explanation = parts[1] if len(parts) > 1 else str(st.session_state.feedback)
+            correct_en = parts[2] if len(parts) > 2 else ""
+
+            is_good = "Perfektní" in verdict or "Dobře" in verdict
             box_class = "feedback-box-success" if is_good else "feedback-box-error"
-            
-            st.markdown(f'<div class="{box_class}"><b>Hodnocení:</b><br>{st.session_state.feedback}</div>', unsafe_allow_html=True)
-            
+
+            st.markdown(f'<div class="{box_class}"><b>{verdict}</b><br>{explanation}</div>', unsafe_allow_html=True)
+            if correct_en and len(correct_en) > 2:
+                 st.info(f"Correct English: {correct_en}")
+
             if st.button("Další úkol ➡️", type="primary"):
                 st.session_state.step += 1
                 st.session_state.task_data = None
                 st.rerun()
         else:
-            # Nahrávání
             lang = task_info["lang_rec"]
-            btn_label = f"🔴 Nahrát odpověď ({lang.upper()})"
-            
-            # Unikátní klíč pro rekordér
-            audio_data = mic_recorder(start_prompt=btn_label, stop_prompt="⏹️ Odeslat", key=f"rec_{step}_{current_lesson['id']}")
+            btn_txt = f"🔴 Nahrát odpověď ({lang.upper()})"
+            audio_data = mic_recorder(start_prompt=btn_txt, stop_prompt="⏹️ Odeslat", key=f"rec_{step}_{current_lesson_obj['id']}")
             
             if audio_data:
                 with st.spinner("Poslouchám..."):
@@ -297,20 +288,17 @@ def main():
                         ).strip()
                         
                         st.info(f"Slyšel jsem: \"{transcript}\"")
-                        
-                        # Pokud Whisper nic neslyšel
-                        if len(transcript) < 2:
-                            st.warning("Nic jsem neslyšel, zkus to znovu.")
+                        if len(transcript) < 1:
+                            st.warning("Nic jsem neslyšel.")
                         else:
                             st.session_state.feedback = evaluate_student(transcript, data, data["type"])
                             st.rerun()
                     except Exception as e:
                         st.error(f"Chyba: {e}")
 
-    # --- KONEC ---
     else:
         st.balloons()
-        st.success("🎉 Lekce dokončena! Jsi jednička!")
+        st.success("🎉 Lekce dokončena!")
         if st.button("Zpět na začátek"):
             reset_lesson()
             st.rerun()
