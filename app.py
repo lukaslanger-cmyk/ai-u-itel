@@ -8,74 +8,21 @@ import io
 # --- 1. KONFIGURACE APLIKACE & CSS ---
 st.set_page_config(page_title="AI English Teacher Pro", page_icon="🎓", layout="wide")
 
-# PROFESIONÁLNÍ UI DESIGN
 st.markdown("""
 <style>
-    /* Hlavní kontejner */
     .main { background-color: #ffffff; }
-    
-    /* Boční panel */
-    section[data-testid="stSidebar"] {
-        background-color: #f7f9fc;
-        border-right: 1px solid #e0e0e0;
-    }
-    
-    /* Nadpisy v panelu */
-    .sidebar-header {
-        font-size: 1.2em;
-        font-weight: bold;
-        color: #1e3a8a;
-        margin-bottom: 10px;
-        border-bottom: 2px solid #1e3a8a;
-        padding-bottom: 5px;
-    }
-
-    /* Tlačítka */
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 600;
-        border: none;
-        background-color: #2563eb;
-        color: white;
-        transition: all 0.2s;
-    }
-    .stButton>button:hover {
-        background-color: #1d4ed8;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    /* Kartička úkolu */
-    .task-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-        padding: 30px;
-        border-radius: 20px;
-        border: 1px solid #bae6fd;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        margin-bottom: 25px;
-    }
-    
-    /* Feedback boxy */
-    .feedback-box {
-        padding: 20px;
-        border-radius: 12px;
-        margin-top: 15px;
-        text-align: left;
-        font-size: 1.05em;
-        line-height: 1.6;
-    }
+    section[data-testid="stSidebar"] { background-color: #f7f9fc; border-right: 1px solid #e0e0e0; }
+    .sidebar-header { font-size: 1.2em; font-weight: bold; color: #1e3a8a; margin-bottom: 10px; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3em; font-weight: 600; border: none; background-color: #2563eb; color: white; transition: all 0.2s; }
+    .stButton>button:hover { background-color: #1d4ed8; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .task-card { background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%); padding: 30px; border-radius: 20px; border: 1px solid #bae6fd; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); text-align: center; margin-bottom: 25px; }
+    .feedback-box { padding: 20px; border-radius: 12px; margin-top: 15px; text-align: left; font-size: 1.05em; line-height: 1.6; }
     .fb-success { background-color: #dcfce7; border-left: 5px solid #22c55e; color: #14532d; }
     .fb-error { background-color: #fee2e2; border-left: 5px solid #ef4444; color: #7f1d1d; }
-
-    /* Nadpisy */
     h1, h2, h3 { color: #1e293b; font-family: 'Segoe UI', sans-serif; }
 </style>
 """, unsafe_allow_html=True)
 
-# Kontrola API
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 except:
@@ -84,42 +31,15 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- 2. PEDAGOGICKY UPRAVENÝ SYLABUS (VČETNĚ MNOŽNÉHO ČÍSLA) ---
+# --- 2. PEDAGOGICKY UPRAVENÝ SYLABUS ---
 SYLLABUS_DATA = [
-  {
-    "id": 1, 
-    "title": "1. Být či nebýt? (TO BE)", 
-    "topic": "Verb TO BE (Singular: I am, You are, He is / Plural: We are, They are) + Negatives (I am not)", 
-    "goal": "Umět používat sloveso BÝT v jednotném i množném čísle a v záporu."
-  },
-  {
-    "id": 2, 
-    "title": "2. Kde co leží? (Předložky)", 
-    "topic": "Prepositions (in, on, under, next to, behind)", 
-    "goal": "Určit polohu věcí (jedné i více)."
-  },
-  {
-    "id": 3, 
-    "title": "3. Mít či nemít? (HAVE GOT)", 
-    "topic": "Verb HAVE GOT (Singular & Plural) + Questions (Have you got?)", 
-    "goal": "Mluvit o vlastnictví věcí a zvířat."
-  },
-  {
-    "id": 4, 
-    "title": "4. Superman (CAN / CAN'T)", 
-    "topic": "Modal verb CAN (Schopnosti)", 
-    "goal": "Říct, co umíme a co neumíme my i ostatní."
-  },
-  {
-    "id": 5, 
-    "title": "5. Moje rodina (MY, YOUR...)", 
-    "topic": "Possessives (My, Your, Our, Their) + Family members", 
-    "goal": "Představit členy rodiny a čí co je."
-  }
-  # ... (Další lekce by následovaly)
+  {"id": 1, "title": "1. Být či nebýt? (TO BE)", "topic": "Verb TO BE (Singular: I am, You are, He is / Plural: We are, They are) + Negatives (I am not)", "goal": "Umět používat sloveso BÝT v jednotném i množném čísle a v záporu."},
+  {"id": 2, "title": "2. Kde co leží? (Předložky)", "topic": "Prepositions (in, on, under, next to, behind)", "goal": "Určit polohu věcí (jedné i více)."},
+  {"id": 3, "title": "3. Mít či nemít? (HAVE GOT)", "topic": "Verb HAVE GOT (Singular & Plural) + Questions (Have you got?)", "goal": "Mluvit o vlastnictví věcí a zvířat."},
+  {"id": 4, "title": "4. Superman (CAN / CAN'T)", "topic": "Modal verb CAN (Schopnosti)", "goal": "Říct, co umíme a co neumíme my i ostatní."},
+  {"id": 5, "title": "5. Moje rodina (MY, YOUR...)", "topic": "Possessives (My, Your, Our, Their) + Family members", "goal": "Představit členy rodiny a čí co je."}
 ]
 
-# Definice metodiky (Ping-Pong)
 TASK_TYPES = {
     1: {"type": "listen", "name": "👂 Krok 1: Porozumění (Poslech)", "instruction": "Poslouchej anglickou větu. Co to znamená česky?", "lang_rec": "cs"},
     2: {"type": "imitate", "name": "🦜 Krok 2: Výslovnost (Papoušek)", "instruction": "Přečti a zopakuj anglickou větu. Snaž se o přízvuk.", "lang_rec": "en"},
@@ -131,15 +51,25 @@ TASK_TYPES = {
 # --- 3. JÁDRO APLIKACE ---
 
 def init_session():
-    if 'step' not in st.session_state: st.session_state.step = 0
-    if 'current_lesson_index' not in st.session_state: st.session_state.current_lesson_index = 0
-    if 'theory_content' not in st.session_state: st.session_state.theory_content = None
+    # TOTO JE TA OPRAVA - DEFINUJEME VŠECHNY PROMĚNNÉ
+    defaults = {
+        'step': 0,
+        'current_lesson_index': 0,
+        'theory_content': None,
+        'task_data': None,
+        'feedback': None,
+        'task_audio': None
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 def reset_lesson():
     st.session_state.step = 0
     st.session_state.task_data = None
     st.session_state.feedback = None
     st.session_state.theory_content = None
+    st.session_state.task_audio = None
 
 async def generate_audio_memory(text, lang="en"):
     try:
@@ -154,11 +84,9 @@ async def generate_audio_memory(text, lang="en"):
     except: return None
 
 def get_theory(lesson_data):
-    # Prompt pro teorii - vynucuje komplexnost
     prompt = f"""
     Jsi zkušený učitel angličtiny. Téma: {lesson_data['topic']}.
-    Cíl: Vysvětlit látku dětem (8-12 let), ale NEVYNECHAT důležité věci.
-    
+    Cíl: Vysvětlit látku dětem (8-12 let).
     POŽADAVKY:
     1. Vysvětli jednotné číslo (Já/Ty) I množné číslo (My/Vy/Oni).
     2. Vysvětli zápor (pokud je v tématu).
@@ -175,7 +103,6 @@ def generate_task_data(lesson_data, step_number):
     task_type = TASK_TYPES[step_number]["type"]
     topic = lesson_data['topic']
     
-    # Prompt pro úkoly - vynucuje variabilitu
     prompt = f"""
     Generuj cvičení. Téma: {topic}. Typ: {task_type}.
     INSTRUKCE: Používej slovní zásobu A1/A2. 
@@ -219,9 +146,9 @@ def evaluate_student(student_text, task_data, task_type):
 
 # --- 4. UI LOGIKA ---
 def main():
-    init_session()
+    init_session() # ZAVOLAT HNED NA ZAČÁTKU!
 
-    # --- LEVÝ PANEL (NOVÝ DESIGN) ---
+    # --- LEVÝ PANEL ---
     with st.sidebar:
         st.markdown('<div class="sidebar-header">🦁 Můj profil</div>', unsafe_allow_html=True)
         st.caption("Student: **Začátečník**")
@@ -230,19 +157,14 @@ def main():
         st.markdown("---")
         st.markdown('<div class="sidebar-header">📚 Učebnice</div>', unsafe_allow_html=True)
         
-        # Použijeme RADIO místo Selectboxu pro lepší vzhled menu
         titles = [l['title'] for l in SYLLABUS_DATA]
         selected_title = st.radio(
-            "Vyber lekci:", 
-            titles, 
+            "Vyber lekci:", titles, 
             index=st.session_state.current_lesson_index,
             label_visibility="collapsed"
         )
         
-        # Najít index vybrané lekce
         new_index = titles.index(selected_title)
-        
-        # Pokud uživatel klikl na jinou lekci v menu
         if new_index != st.session_state.current_lesson_index:
             st.session_state.current_lesson_index = new_index
             reset_lesson()
@@ -256,15 +178,11 @@ def main():
     # --- HLAVNÍ OKNO ---
     current_lesson = SYLLABUS_DATA[st.session_state.current_lesson_index]
 
-    # KROK 0: TEORIE
     if st.session_state.step == 0:
         st.markdown(f"# 🎓 {current_lesson['title']}")
-        
         if not st.session_state.theory_content:
             with st.spinner("Paní učitelka píše na tabuli..."):
                 st.session_state.theory_content = get_theory(current_lesson)
-        
-        # Zobrazení teorie v hezkém boxu
         st.info(st.session_state.theory_content)
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -273,17 +191,15 @@ def main():
                 st.session_state.step = 1
                 st.rerun()
 
-    # KROKY 1-5: CVIČENÍ
     elif st.session_state.step <= 5:
         step = st.session_state.step
         task_info = TASK_TYPES[step]
         
-        # Progress indikátor nahoře
         st.caption(f"Lekce {current_lesson['id']} • Úkol {step} z 5")
         st.progress(step/5)
 
-        # 1. Generování (pokud není)
-        if not st.session_state.task_data:
+        # BEZPEČNÉ GENEROVÁNÍ - TEĎ UŽ NEZHAVARUJE
+        if st.session_state.task_data is None:
             with st.spinner("Vymýšlím zadání..."):
                 data = generate_task_data(current_lesson, step)
                 st.session_state.task_data = data
@@ -296,7 +212,6 @@ def main():
 
         data = st.session_state.task_data
 
-        # 2. Vizuál Karty Úkolu
         st.markdown(f"""
         <div class="task-card">
             <h3>{task_info['name']}</h3>
@@ -304,7 +219,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Obsah karty
         col_c, col_content, col_d = st.columns([1, 4, 1])
         with col_content:
             if data["type"] == "listen":
@@ -325,11 +239,9 @@ def main():
             elif data["type"] == "boss":
                 st.markdown(f"<h3 style='text-align:center; color:#b91c1c'>😈 {data['primary']}</h3>", unsafe_allow_html=True)
 
-            # 3. Sekce Feedback / Nahrávání
             st.markdown("---")
             
             if st.session_state.feedback:
-                # Rozparsování feedbacku
                 parts = st.session_state.feedback.split('|')
                 verdict = parts[0] if len(parts) > 0 else "Info"
                 expl = parts[1] if len(parts) > 1 else ""
@@ -376,7 +288,6 @@ def main():
                                 st.rerun()
                         except Exception as e: st.error(str(e))
 
-    # KONEC
     else:
         st.canvas_balloons()
         st.markdown(f"""
