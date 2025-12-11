@@ -4,6 +4,7 @@ from streamlit_mic_recorder import mic_recorder
 import io
 from gtts import gTTS
 import re
+import random
 
 # --- 1. KONFIGURACE APLIKACE & CSS ---
 st.set_page_config(page_title="AI English Teacher Pro", page_icon="🎓", layout="wide")
@@ -83,24 +84,16 @@ def reset_lesson():
     st.session_state.task_audio_bytes = None
 
 def clean_audio_text(text):
-    """Odstraní balast typu 'Listen:', 'Part 1' atd."""
-    # Odstraní vše před dvojtečkou (např "Listen: Hello")
     if ":" in text:
         text = text.split(":", 1)[1].strip()
-    
-    # Odstraní slova jako Part 1, Task, atd na začátku
     text = re.sub(r'^(Part|Task|Step|Listen|Question)\s*\d*\s*', '', text, flags=re.IGNORECASE)
-    
-    # Odstraní speciální znaky
     text = text.replace("*", "").replace("`", "").replace('"', "").replace("|||", "")
     return text.strip()
 
 def generate_audio_google(text, lang="en"):
-    """Generuje čisté audio."""
     try:
         clean_text = clean_audio_text(text)
         if not clean_text: return None
-        
         tts = gTTS(text=clean_text, lang=lang, slow=False)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
@@ -129,10 +122,18 @@ def generate_task_data(lesson_data, step_number):
     task_type = TASK_TYPES[step_number]["type"]
     topic = lesson_data['topic']
     
+    # Variabilita pro vyšší teplotu
+    categories = ["zvířata", "emoce (happy, sad, angry)", "barvy", "členové rodiny", "místa (school, park, home)"]
+    category = random.choice(categories)
+
     prompt = f"""
-    Generuj náhodné cvičení. Téma: {topic}. Typ: {task_type}.
-    INSTRUKCE: Používej slovní zásobu A1/A2. 
-    DŮLEŽITÉ: NEPOUŽÍVEJ ŽÁDNÉ PŘEDPONY JAKO 'Listen:', 'Task:'. JEN VĚTU.
+    Generuj KREATIVNÍ cvičení pro děti. Téma: {topic}. Typ: {task_type}.
+    
+    DŮLEŽITÉ INSTRUKCE:
+    1. NEPOUŽÍVEJ DOKOLA SLOVA "Doctor", "Teacher", "Student". To je nuda.
+    2. Použij v této větě kategorii: {category}.
+    3. Střídej osoby (I, You, We, They, He, She).
+    4. Žádné úvodní řeči. Jen data.
     
     Formáty výstupu (přísně dodržuj oddělovač "|||"):
     LISTEN -> Anglická věta|||Český překlad
@@ -142,22 +143,20 @@ def generate_task_data(lesson_data, step_number):
     BOSS -> Česká složitější věta|||Anglický překlad
     """
     try:
+        # Teplota 0.9 pro maximální variabilitu
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}], temperature=0.8
+            model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}], temperature=0.9
         ).choices[0].message.content
         parts = resp.split('|||')
         primary = parts[0].strip()
-        # Dodatečné čištění, kdyby AI neposlechla
         primary = clean_audio_text(primary)
-        
         return {"primary": primary, "secondary": parts[1].strip() if len(parts)>1 else "", "type": task_type}
     except: return {"primary": "Error", "secondary": "", "type": "error"}
 
 def evaluate_student(student_text, task_data, task_type):
-    # Logika pro Krok 1 (Poslech) - Čeština je správně!
     lang_instruction = ""
     if task_type == "listen":
-        lang_instruction = "Dítě má za úkol přeložit větu DO ČEŠTINY. Pokud mluví česky a význam sedí, je to VÝBORNĚ. Pokud mluví anglicky, upozorni ho, ať mluví česky."
+        lang_instruction = "Dítě má překládat do ČEŠTINY. Pokud řeklo český význam, je to SPRÁVNĚ. V češtině je 'Jsem' to samé jako 'Já jsem' (nevyjádřený podmět je OK). Neopravuj češtinu, pokud význam sedí."
     else:
         lang_instruction = "Dítě má mluvit ANGLICKY."
 
@@ -167,11 +166,11 @@ def evaluate_student(student_text, task_data, task_type):
     Vzor (Target): "{task_data['primary']}" (nebo překlad "{task_data['secondary']}").
     Dítě řeklo: "{student_text}".
     
-    PRAVIDLA:
+    PRAVIDLA HODNOCENÍ:
     1. {lang_instruction}
-    2. Ignoruj interpunkci a velikost písmen.
-    3. Mluv v 2. osobě jednotného čísla (např. "Řekl jsi to správně", ne "Dítě řeklo").
-    4. Buď povzbuzující.
+    2. Ignoruj interpunkci, velikost písmen.
+    3. Nebuď puntičkář. Pokud dítě řeklo "Jsem šťastný" místo "Já jsem šťastný", JE TO SPRÁVNĚ.
+    4. Neopravuj nesmysly (jako "učitorka").
     
     Výstupní formát:
     VERDIKT: (Výborně / Dobře / Zkus to znovu)
@@ -188,7 +187,6 @@ def evaluate_student(student_text, task_data, task_type):
 def main():
     init_session()
 
-    # --- LEVÝ PANEL ---
     with st.sidebar:
         st.markdown("""<div class="sidebar-header">🦁 Můj profil</div>""", unsafe_allow_html=True)
         st.caption("Student: **Začátečník**")
@@ -215,17 +213,14 @@ def main():
             reset_lesson()
             st.rerun()
 
-    # --- HLAVNÍ OKNO ---
+    # HLAVNÍ OKNO
     current_lesson = SYLLABUS_DATA[st.session_state.current_lesson_index]
 
-    # KROK 0: TEORIE
     if st.session_state.step == 0:
         st.markdown(f"# 🎓 {current_lesson['title']}")
-        
         if not st.session_state.theory_content:
             with st.spinner("Paní učitelka píše na tabuli..."):
                 st.session_state.theory_content = get_theory(current_lesson)
-        
         st.info(st.session_state.theory_content)
         
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -234,7 +229,6 @@ def main():
                 st.session_state.step = 1
                 st.rerun()
 
-    # KROKY 1-5: CVIČENÍ
     elif st.session_state.step <= 5:
         step = st.session_state.step
         task_info = TASK_TYPES[step]
@@ -242,14 +236,12 @@ def main():
         st.caption(f"Lekce {current_lesson['id']} • Úkol {step} z 5")
         st.progress(step/5)
 
-        # GENERUJ DATA
         if st.session_state.task_data is None:
             with st.spinner("Vymýšlím zadání..."):
                 data = generate_task_data(current_lesson, step)
                 st.session_state.task_data = data
                 st.session_state.feedback = None
                 
-                # AUDIO
                 if data["type"] in ["listen", "imitate", "respond"]:
                     audio_bytes = generate_audio_google(data["primary"], "en")
                     st.session_state.task_audio_bytes = audio_bytes
@@ -258,7 +250,6 @@ def main():
 
         data = st.session_state.task_data
 
-        # VIZUÁL KARTY
         st.markdown(f"""
         <div class="task-card">
             <h3>{task_info['name']}</h3>
@@ -269,7 +260,6 @@ def main():
         col_c, col_content, col_d = st.columns([1, 4, 1])
         with col_content:
             
-            # --- ZOBRAZENÍ OBSAHU ---
             if data["type"] == "listen":
                 if st.session_state.task_audio_bytes:
                     st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
@@ -283,7 +273,6 @@ def main():
             elif data["type"] in ["translate", "boss"]:
                 st.markdown(f"<h2 style='text-align:center; color:#2563eb'>🇨🇿 {data['primary']}</h2>", unsafe_allow_html=True)
 
-            # TLAČÍTKO "JINÁ VĚTA"
             st.markdown("<br>", unsafe_allow_html=True)
             if not st.session_state.feedback:
                 cols = st.columns([1, 1])
@@ -294,7 +283,6 @@ def main():
             
             st.markdown("---")
             
-            # --- FEEDBACK / NAHRÁVÁNÍ ---
             if st.session_state.feedback:
                 text = st.session_state.feedback
                 verdict = "Info"
