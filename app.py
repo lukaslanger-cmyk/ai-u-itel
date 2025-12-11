@@ -57,7 +57,7 @@ TASK_TYPES = {
     1: {"type": "listen", "name": "👂 Krok 1: Porozumění (Poslech)", "instruction": "Poslouchej a nahrej český překlad.", "lang_rec": "cs"},
     2: {"type": "imitate", "name": "🦜 Krok 2: Výslovnost (Papoušek)", "instruction": "Poslouchej a nahrej, jak to vyslovuješ (anglicky).", "lang_rec": "en"},
     3: {"type": "translate", "name": "✍️ Krok 3: Překlad (Dril)", "instruction": "Přečti si českou větu a nahrej anglický překlad.", "lang_rec": "en"},
-    4: {"type": "respond", "name": "🗣️ Krok 4: Konverzace (Reakce)", "instruction": "Poslouchej otázku a odpověz na ni anglicky (podle pravdy nebo si vymýšlej).", "lang_rec": "en"},
+    4: {"type": "respond", "name": "🗣️ Krok 4: Konverzace (Reakce)", "instruction": "Poslouchej otázku a odpověz na ni anglicky.", "lang_rec": "en"},
     5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Výzva)", "instruction": "Tohle je těžší věta. Přečti si ji česky a přelož do angličtiny.", "lang_rec": "en"}
 }
 
@@ -87,23 +87,15 @@ def robust_text_cleaner(text):
     """Odstraní šipky, čísla, odrážky a jazykové prefixy z vygenerované věty."""
     if not text: return ""
     
-    # Odstraní vše před dvojtečkou (např "Target: Hello")
     if ":" in text:
         text = text.split(":", 1)[1].strip()
     
-    # NOVÉ: Odstraní jazykové prefixy i s mezerou "cz ", "en "
     text = re.sub(r'^(cz|en|cze|eng)\s+[:\->]*\s*', '', text, flags=re.IGNORECASE)
-    
-    # Odstraní šipky
     text = text.replace("->", "").replace(">", "").strip()
-    
-    # Odstraní čísla na začátku
     text = re.sub(r'^[\d\.\)\-\s]+', '', text)
-    
-    # Odstraní klíčová slova
     text = re.sub(r'^(Part|Task|Step|Listen|Question|Sentence|Target)\s*\d*\s*', '', text, flags=re.IGNORECASE)
-    
     text = text.replace("*", "").replace("`", "").replace('"', "").replace("|||", "")
+    
     return text.strip()
 
 def generate_audio_google(text, lang="en"):
@@ -140,10 +132,10 @@ def generate_task_data(lesson_data, step_number):
     categories = ["zvířata", "emoce", "barvy", "rodina", "škola", "jídlo", "sport"]
     category = random.choice(categories)
 
-    # Specifické instrukce pro různé typy
+    # Specifické instrukce
     specific_rules = ""
     if task_type == "respond":
-        specific_rules = "VÝSTUP MUSÍ BÝT OTÁZKA KONČÍCÍ OTAZNÍKEM."
+        specific_rules = "VÝSTUP MUSÍ BÝT OTÁZKA (např. 'Are you happy?')."
     elif task_type == "translate" or task_type == "boss":
         specific_rules = "PRVNÍ VĚTA MUSÍ BÝT ČESKY. DRUHÁ ANGLICKY."
 
@@ -160,9 +152,9 @@ def generate_task_data(lesson_data, step_number):
     Formáty výstupu (přísně dodržuj oddělovač "|||"):
     LISTEN -> Anglická věta|||Český překlad
     IMITATE -> Anglická věta|||Český význam
-    TRANSLATE -> Česká věta|||Anglický překlad
-    RESPOND -> Anglická otázka?|||Open answer
-    BOSS -> Česká složitější věta|||Anglický překlad
+    TRANSLATE -> Česká věta|||Anglický překlad (POZOR: PRVNÍ ČÁST JE ČESKY!)
+    RESPOND -> Anglická otázka?|||Typ odpovědi
+    BOSS -> Česká složitější věta|||Anglický překlad (POZOR: PRVNÍ ČÁST JE ČESKY!)
     """
     try:
         resp = client.chat.completions.create(
@@ -171,7 +163,6 @@ def generate_task_data(lesson_data, step_number):
         
         parts = resp.split('|||')
         
-        # OKAMŽITÉ ČIŠTĚNÍ DAT
         primary = robust_text_cleaner(parts[0])
         secondary = robust_text_cleaner(parts[1]) if len(parts)>1 else ""
         
@@ -179,54 +170,54 @@ def generate_task_data(lesson_data, step_number):
     except: return {"primary": "Error", "secondary": "", "type": "error"}
 
 def evaluate_student(student_text, task_data, task_type):
-    lang_instruction = ""
-    target_sentence = task_data['secondary'] # Default target (translation)
+    target_sentence = task_data['secondary'] 
     primary_sentence = task_data['primary']
     
-    # SPECIÁLNÍ LOGIKA PRO KONVERZACI (RESPOND)
+    lang_instruction = ""
+    benevolence = "BUĎ VELMI BENEVOLENTNÍ. Uznej synonyma (např. máma=matka, auto=vůz, happy=šťastný/veselý)."
+
     if task_type == "respond":
         prompt = f"""
-        Jsi učitel angličtiny. Položil jsi dítěti otázku: "{primary_sentence}".
+        Jsi kamarádský učitel. Položil jsi dítěti otázku: "{primary_sentence}".
         Dítě odpovědělo: "{student_text}".
         
-        ÚKOL: Zkontroluj, jestli odpověď DÁVÁ SMYSL v kontextu otázky a jestli je ANGLICKY.
-        IGNORUJ, jestli je to gramaticky dokonalé. Hlavní je komunikace.
-        NEPOROVNÁVEJ s žádnou "správnou odpovědí", protože odpověď je otevřená.
+        ÚKOL: Zkontroluj, jestli odpověď DÁVÁ SMYSL v kontextu otázky a je ANGLICKY.
+        IGNORUJ gramatické drobnosti. Hlavní je, že rozumělo.
         
-        Výstup:
+        Výstup (Mluv přímo k dítěti - tykání):
         VERDIKT: (Výborně / Dobře / Zkus to znovu)
-        VYSVĚTLENÍ: (Česky. Pokud je chyba, oprav ji jemně. Pokud je to OK, rozviň konverzaci.)
-        CORRECT: (Pouze pokud byla velká chyba, napiš lepší verzi odpovědi)
+        VYSVĚTLENÍ: (Reaguj na jeho odpověď jako v konverzaci. Např. "To je super, že jsi šťastný!")
+        CORRECT: (Jen pokud byla odpověď úplně mimo, napiš vzorovou odpověď)
         """
     
-    # LOGIKA PRO OSTATNÍ TYPY
     else:
         if task_type == "listen":
-            lang_instruction = "Dítě překládá do ČEŠTINY. Pokud význam sedí, je to SPRÁVNĚ."
+            lang_instruction = "Dítě překládá do ČEŠTINY."
             target_sentence = task_data['secondary']
         elif task_type == "translate" or task_type == "boss":
-            lang_instruction = "Dítě překládá do ANGLIČTINY. Porovnej s: " + task_data['secondary']
+            lang_instruction = "Dítě překládá do ANGLIČTINY."
             target_sentence = task_data['secondary']
         elif task_type == "imitate":
-            lang_instruction = "Dítě opakuje anglickou větu. Porovnej s: " + task_data['primary']
+            lang_instruction = "Dítě opakuje anglickou větu."
             target_sentence = task_data['primary']
 
         prompt = f"""
-        Jsi učitel. Úkol: {task_type}.
+        Jsi hodný učitel. Mluvíš přímo k dítěti (tykání).
+        Úkol: {task_type}.
         Zadání: "{primary_sentence}".
-        Správně má být (přibližně): "{target_sentence}".
+        Správně má být (cca): "{target_sentence}".
         Dítě řeklo: "{student_text}".
         
         PRAVIDLA:
         1. {lang_instruction}
-        2. Ignoruj interpunkci a velikost písmen.
-        3. Nebuď puntičkář.
-        4. NEVYMÝŠLEJ SI BÁCHORKY o psech a kočkách, pokud nejsou ve větě.
+        2. {benevolence}
+        3. Ignoruj interpunkci a velikost písmen.
+        4. MLUV PŘÍMO K DÍTĚTI (nepoužívej "student", "dítě", "on"). Řekni "Tys řekl".
         
         Výstupní formát:
         VERDIKT: (Výborně / Dobře / Zkus to znovu)
-        VYSVĚTLENÍ: (Stručně česky)
-        CORRECT: (Správná verze, pokud byla chyba)
+        VYSVĚTLENÍ: (Stručně česky pro dítě)
+        CORRECT: (Správná verze)
         """
 
     try:
@@ -243,16 +234,11 @@ def main():
         st.markdown("""<div class="sidebar-header">🦁 Můj profil</div>""", unsafe_allow_html=True)
         st.caption("Student: **Začátečník**")
         st.progress(st.session_state.current_lesson_index / len(SYLLABUS_DATA), text="Celkový postup")
-        
         st.markdown("---")
         st.markdown("""<div class="sidebar-header">📚 Učebnice</div>""", unsafe_allow_html=True)
         
         titles = [l['title'] for l in SYLLABUS_DATA]
-        selected_title = st.radio(
-            "Vyber lekci:", titles, 
-            index=st.session_state.current_lesson_index,
-            label_visibility="collapsed"
-        )
+        selected_title = st.radio("Vyber lekci:", titles, index=st.session_state.current_lesson_index, label_visibility="collapsed")
         
         new_index = titles.index(selected_title)
         if new_index != st.session_state.current_lesson_index:
@@ -265,9 +251,9 @@ def main():
             reset_lesson()
             st.rerun()
 
-    # HLAVNÍ OKNO
     current_lesson = SYLLABUS_DATA[st.session_state.current_lesson_index]
 
+    # KROK 0
     if st.session_state.step == 0:
         st.markdown(f"# 🎓 {current_lesson['title']}")
         if not st.session_state.theory_content:
@@ -281,6 +267,7 @@ def main():
                 st.session_state.step = 1
                 st.rerun()
 
+    # KROKY 1-5
     elif st.session_state.step <= 5:
         step = st.session_state.step
         task_info = TASK_TYPES[step]
@@ -294,7 +281,6 @@ def main():
                 st.session_state.task_data = data
                 st.session_state.feedback = None
                 
-                # AUDIO JEN PRO LISTEN, IMITATE a RESPOND (otázka)
                 if data["type"] in ["listen", "imitate", "respond"]:
                     audio_bytes = generate_audio_google(data["primary"], "en")
                     st.session_state.task_audio_bytes = audio_bytes
@@ -313,47 +299,51 @@ def main():
         col_c, col_content, col_d = st.columns([1, 4, 1])
         with col_content:
             
-            # LISTEN - text skrytý
+            # --- DISPLAY CONTENT ---
             if data["type"] == "listen":
                 if st.session_state.task_audio_bytes:
                     st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
+                else:
+                    st.error("Zvuk se nepodařilo načíst.")
+                    st.markdown(f"<h3 style='text-align:center; color:#555'>({data['primary']})</h3>", unsafe_allow_html=True) # Fallback zobrazení textu
+                
                 st.markdown("<h3 style='text-align:center'>❓ ???</h3>", unsafe_allow_html=True)
                 
-            # IMITATE a RESPOND - Angličtina
+                # Tlačítko nápovědy pro poslech
+                if st.button("🆘 Nevím / Zobrazit nápovědu"):
+                    st.info(f"Nápověda: {data['primary']}")
+
             elif data["type"] in ["imitate", "respond"]:
                 st.markdown(f"<h2 style='text-align:center; color:#2563eb'>{data['primary']}</h2>", unsafe_allow_html=True)
                 if st.session_state.task_audio_bytes:
                     st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
             
-            # TRANSLATE a BOSS - Čeština
             elif data["type"] in ["translate", "boss"]:
-                # Tady zobrazujeme primary, který MUSÍ BÝT ČESKY (zajištěno v promptu)
+                # Tady zobrazujeme primary, který je ČESKY
                 st.markdown(f"<h2 style='text-align:center; color:#2563eb'>🇨🇿 {data['primary']}</h2>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Tlačítko pro novou větu (pokud není feedback)
             if not st.session_state.feedback:
-                cols = st.columns([1, 1])
-                with cols[0]:
-                    if st.button("🔄 Zkusit jinou větu"):
-                        st.session_state.task_data = None
-                        st.rerun()
+                if st.button("🔄 Zkusit jinou větu"):
+                    st.session_state.task_data = None
+                    st.rerun()
             
             st.markdown("---")
             
+            # --- FEEDBACK ---
             if st.session_state.feedback:
                 text = st.session_state.feedback
                 verdict = "Info"
                 expl = text
                 corr = ""
                 
-                if "VERDIKT:" in text:
-                    verdict = text.split("VERDIKT:")[1].split("\n")[0].strip()
-                if "VYSVĚTLENÍ:" in text:
-                    expl = text.split("VYSVĚTLENÍ:")[1].split("CORRECT:")[0].strip()
-                if "CORRECT:" in text:
+                if "VERDIKT:" in text: verdict = text.split("VERDIKT:")[1].split("\n")[0].strip()
+                if "VYSVĚTLENÍ:" in text: expl = text.split("VYSVĚTLENÍ:")[1].split("CORRECT:")[0].strip()
+                if "CORRECT:" in text: 
                     corr_parts = text.split("CORRECT:")
-                    if len(corr_parts) > 1:
-                        corr = corr_parts[1].strip()
+                    if len(corr_parts) > 1: corr = corr_parts[1].strip()
 
                 is_good = "Výborně" in verdict or "Dobře" in verdict or "Perfektní" in verdict
                 css_class = "fb-success" if is_good else "fb-error"
@@ -366,7 +356,7 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # U konverzace nezobrazujeme "Správně", pokud to není nutné
+                # U respond nezobrazujeme správnou odpověď tak často
                 if corr and len(corr) > 2 and not is_good and data["type"] != "respond":
                     st.info(f"Správně: {corr}")
                 
