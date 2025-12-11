@@ -306,3 +306,114 @@ def main():
         st.markdown(f"""
         <div class="task-card">
             <h3>{task_info['name']}</h3>
+            <p style="color:#555; font-style:italic;">{task_info['instruction']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col_c, col_content, col_d = st.columns([1, 4, 1])
+        with col_content:
+            
+            # LISTEN - text skrytý
+            if data["type"] == "listen":
+                if st.session_state.task_audio_bytes:
+                    st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
+                st.markdown("<h3 style='text-align:center'>❓ ???</h3>", unsafe_allow_html=True)
+                
+            # IMITATE a RESPOND - Angličtina
+            elif data["type"] in ["imitate", "respond"]:
+                st.markdown(f"<h2 style='text-align:center; color:#2563eb'>{data['primary']}</h2>", unsafe_allow_html=True)
+                if st.session_state.task_audio_bytes:
+                    st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
+            
+            # TRANSLATE a BOSS - Čeština
+            elif data["type"] in ["translate", "boss"]:
+                # Tady zobrazujeme primary, který MUSÍ BÝT ČESKY (zajištěno v promptu)
+                st.markdown(f"<h2 style='text-align:center; color:#2563eb'>🇨🇿 {data['primary']}</h2>", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            if not st.session_state.feedback:
+                cols = st.columns([1, 1])
+                with cols[0]:
+                    if st.button("🔄 Zkusit jinou větu"):
+                        st.session_state.task_data = None
+                        st.rerun()
+            
+            st.markdown("---")
+            
+            if st.session_state.feedback:
+                text = st.session_state.feedback
+                verdict = "Info"
+                expl = text
+                corr = ""
+                
+                if "VERDIKT:" in text:
+                    verdict = text.split("VERDIKT:")[1].split("\n")[0].strip()
+                if "VYSVĚTLENÍ:" in text:
+                    expl = text.split("VYSVĚTLENÍ:")[1].split("CORRECT:")[0].strip()
+                if "CORRECT:" in text:
+                    corr_parts = text.split("CORRECT:")
+                    if len(corr_parts) > 1:
+                        corr = corr_parts[1].strip()
+
+                is_good = "Výborně" in verdict or "Dobře" in verdict or "Perfektní" in verdict
+                css_class = "fb-success" if is_good else "fb-error"
+                icon = "✅" if is_good else "⚠️"
+                
+                st.markdown(f"""
+                <div class="feedback-container {css_class}">
+                    <strong>{icon} {verdict}</strong><br>
+                    {expl}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # U konverzace nezobrazujeme "Správně", pokud to není nutné
+                if corr and len(corr) > 2 and not is_good and data["type"] != "respond":
+                    st.info(f"Správně: {corr}")
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("🔄 Ještě jednu (trénink)"):
+                        st.session_state.task_data = None
+                        st.rerun()
+                with col_btn2:
+                    if st.button("Další úkol ➡️", type="primary"):
+                        st.session_state.step += 1
+                        st.session_state.task_data = None
+                        st.rerun()
+            else:
+                lang = task_info["lang_rec"]
+                audio_data = mic_recorder(
+                    start_prompt=f"🎙️ Nahrát ({lang.upper()})", 
+                    stop_prompt="⏹️ Odeslat", 
+                    key=f"rec_{step}_{current_lesson['id']}"
+                )
+                
+                if audio_data:
+                    with st.spinner("Poslouchám..."):
+                        bio = io.BytesIO(audio_data['bytes'])
+                        bio.name = "audio.wav"
+                        try:
+                            txt = client.audio.transcriptions.create(
+                                file=(bio.name, bio.read()), model="whisper-large-v3-turbo", language=lang, response_format="text"
+                            ).strip()
+                            st.caption(f"Slyšel jsem: {txt}")
+                            if len(txt) < 1: st.warning("Mluvte hlasitěji.")
+                            else:
+                                st.session_state.feedback = evaluate_student(txt, data, data["type"])
+                                st.rerun()
+                        except Exception as e: st.error(str(e))
+
+    else:
+        st.canvas_balloons()
+        st.markdown(f"""
+        <div class="task-card" style="background-color:#dcfce7;">
+            <h1>🎉 Gratuluji!</h1>
+            <p>Lekce {current_lesson['title']} je hotová.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zpět na přehled"):
+            reset_lesson()
+            st.rerun()
+
+if __name__ == "__main__":
+    main()
