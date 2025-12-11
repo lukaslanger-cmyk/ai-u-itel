@@ -33,7 +33,7 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- 2. PEDAGOGICKY UPRAVENÝ SYLABUS ---
+# --- 2. SYLABUS ---
 SYLLABUS_DATA = [
   {"id": 1, "title": "1. Být či nebýt? (TO BE)", "topic": "Verb TO BE (Singular: I am, You are, He is / Plural: We are, They are) + Negatives (I am not)", "goal": "Umět používat sloveso BÝT v jednotném i množném čísle a v záporu."},
   {"id": 2, "title": "2. Kde co leží? (Předložky)", "topic": "Prepositions (in, on, under, next to, behind)", "goal": "Určit polohu věcí (jedné i více)."},
@@ -50,7 +50,7 @@ TASK_TYPES = {
     5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Výzva)", "instruction": "Těžší věta. Dej si pozor na gramatiku!", "lang_rec": "en"}
 }
 
-# --- 3. JÁDRO APLIKACE ---
+# --- 3. FUNKCE ---
 
 def init_session():
     defaults = {
@@ -59,7 +59,7 @@ def init_session():
         'theory_content': None,
         'task_data': None,
         'feedback': None,
-        'task_audio_bytes': None # Změna názvu - ukládáme bajty
+        'task_audio_bytes': None
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -73,7 +73,6 @@ def reset_lesson():
     st.session_state.task_audio_bytes = None
 
 async def generate_audio_bytes(text, lang="en"):
-    """Generuje audio a vrací surová DATA (bytes), ne ukazatel."""
     try:
         voice = "en-US-AnaNeural" if lang == "en" else "cs-CZ-VlastaNeural"
         clean = text.replace("**", "").replace("*", "").replace("`", "")
@@ -81,7 +80,7 @@ async def generate_audio_bytes(text, lang="en"):
         fp = io.BytesIO()
         async for chunk in communicate.stream():
             if chunk["type"] == "audio": fp.write(chunk["data"])
-        return fp.getvalue() # VRACÍME HODNOTU, NE OBJEKT
+        return fp.getvalue()
     except: return None
 
 def get_theory(lesson_data):
@@ -145,15 +144,180 @@ def evaluate_student(student_text, task_data, task_type):
         ).choices[0].message.content
     except: return "Chyba|-|-|-"
 
-# --- 4. UI LOGIKA ---
+# --- 4. HLAVNÍ LOGIKA ---
 def main():
-    init_session() 
+    init_session() # Inicializace hned na začátku
 
     # --- LEVÝ PANEL ---
     with st.sidebar:
-        st.markdown('<div class="sidebar-header">🦁 Můj profil</div>', unsafe_allow_html=True)
+        # Použití trojitých uvozovek pro bezpečnější HTML stringy
+        st.markdown("""<div class="sidebar-header">🦁 Můj profil</div>""", unsafe_allow_html=True)
         st.caption("Student: **Začátečník**")
         st.progress(st.session_state.current_lesson_index / len(SYLLABUS_DATA), text="Celkový postup")
         
         st.markdown("---")
-        st.markdown('<div class="sidebar
+        st.markdown("""<div class="sidebar-header">📚 Učebnice</div>""", unsafe_allow_html=True)
+        
+        titles = [l['title'] for l in SYLLABUS_DATA]
+        selected_title = st.radio(
+            "Vyber lekci:", titles, 
+            index=st.session_state.current_lesson_index,
+            label_visibility="collapsed"
+        )
+        
+        new_index = titles.index(selected_title)
+        if new_index != st.session_state.current_lesson_index:
+            st.session_state.current_lesson_index = new_index
+            reset_lesson()
+            st.rerun()
+
+        st.markdown("---")
+        if st.button("🔄 Restartovat tuto lekci"):
+            reset_lesson()
+            st.rerun()
+
+    # --- HLAVNÍ OKNO ---
+    current_lesson = SYLLABUS_DATA[st.session_state.current_lesson_index]
+
+    # KROK 0: TEORIE
+    if st.session_state.step == 0:
+        st.markdown(f"# 🎓 {current_lesson['title']}")
+        
+        if not st.session_state.theory_content:
+            with st.spinner("Paní učitelka píše na tabuli..."):
+                st.session_state.theory_content = get_theory(current_lesson)
+        
+        st.info(st.session_state.theory_content)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("Jdeme trénovat! 🚀"):
+                st.session_state.step = 1
+                st.rerun()
+
+    # KROKY 1-5: CVIČENÍ
+    elif st.session_state.step <= 5:
+        step = st.session_state.step
+        task_info = TASK_TYPES[step]
+        
+        st.caption(f"Lekce {current_lesson['id']} • Úkol {step} z 5")
+        st.progress(step/5)
+
+        # GENERUJ DATA (POKUD CHYBÍ)
+        if st.session_state.task_data is None:
+            with st.spinner("Vymýšlím zadání..."):
+                data = generate_task_data(current_lesson, step)
+                st.session_state.task_data = data
+                st.session_state.feedback = None
+                
+                # GENERUJ AUDIO JEN PRO URČITÉ TYPY
+                if data["type"] in ["listen", "imitate", "respond"]:
+                    audio_bytes = asyncio.run(generate_audio_bytes(data["primary"], "en"))
+                    st.session_state.task_audio_bytes = audio_bytes
+                else:
+                    st.session_state.task_audio_bytes = None
+
+        data = st.session_state.task_data
+
+        # VIZUÁL KARTY
+        st.markdown(f"""
+        <div class="task-card">
+            <h3>{task_info['name']}</h3>
+            <p style="color:#555; font-style:italic;">{task_info['instruction']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col_c, col_content, col_d = st.columns([1, 4, 1])
+        with col_content:
+            
+            # --- ZOBRAZENÍ AUDIA ---
+            if data["type"] in ["listen", "imitate", "respond"]:
+                if st.session_state.task_audio_bytes:
+                    st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
+                else:
+                    # Tlačítko pro případ selhání audia
+                    st.warning("Zvuk se nenačetl.")
+                    if st.button("🔄 Zkusit načíst zvuk znovu"):
+                        st.session_state.task_data = None
+                        st.rerun()
+
+            # --- ZOBRAZENÍ TEXTU ---
+            if data["type"] == "listen":
+                st.markdown("<h3 style='text-align:center'>❓ ???</h3>", unsafe_allow_html=True)
+                
+            elif data["type"] == "imitate":
+                st.markdown(f"<h2 style='text-align:center; color:#2563eb'>{data['primary']}</h2>", unsafe_allow_html=True)
+                
+            elif data["type"] == "translate":
+                st.markdown(f"<h2 style='text-align:center; color:#2563eb'>🇨🇿 {data['primary']}</h2>", unsafe_allow_html=True)
+                
+            elif data["type"] == "respond":
+                st.markdown(f"<h2 style='text-align:center; color:#2563eb'>❓ {data['primary']}</h2>", unsafe_allow_html=True)
+            
+            elif data["type"] == "boss":
+                st.markdown(f"<h3 style='text-align:center; color:#b91c1c'>😈 {data['primary']}</h3>", unsafe_allow_html=True)
+
+            st.markdown("---")
+            
+            # --- FEEDBACK / NAHRÁVÁNÍ ---
+            if st.session_state.feedback:
+                parts = st.session_state.feedback.split('|')
+                verdict = parts[0] if len(parts) > 0 else "Info"
+                expl = parts[1] if len(parts) > 1 else ""
+                corr = parts[2] if len(parts) > 2 else ""
+                
+                is_good = "Výborně" in verdict or "Dobře" in verdict or "Perfektní" in verdict
+                css_class = "fb-success" if is_good else "fb-error"
+                icon = "✅" if is_good else "⚠️"
+                
+                st.markdown(f"""
+                <div class="feedback-box {css_class}">
+                    <strong>{icon} {verdict}</strong><br>
+                    {expl}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if corr and len(corr) > 2 and not is_good:
+                    st.info(f"Správně: {corr}")
+                
+                if st.button("Další úkol ➡️", type="primary"):
+                    st.session_state.step += 1
+                    st.session_state.task_data = None
+                    st.rerun()
+            else:
+                lang = task_info["lang_rec"]
+                audio_data = mic_recorder(
+                    start_prompt=f"🎙️ Nahrát ({lang.upper()})", 
+                    stop_prompt="⏹️ Odeslat", 
+                    key=f"rec_{step}_{current_lesson['id']}"
+                )
+                
+                if audio_data:
+                    with st.spinner("Poslouchám..."):
+                        bio = io.BytesIO(audio_data['bytes'])
+                        bio.name = "audio.wav"
+                        try:
+                            txt = client.audio.transcriptions.create(
+                                file=(bio.name, bio.read()), model="whisper-large-v3-turbo", language=lang, response_format="text"
+                            ).strip()
+                            st.caption(f"Slyšel jsem: {txt}")
+                            if len(txt) < 1: st.warning("Mluvte hlasitěji.")
+                            else:
+                                st.session_state.feedback = evaluate_student(txt, data, data["type"])
+                                st.rerun()
+                        except Exception as e: st.error(str(e))
+
+    else:
+        st.canvas_balloons()
+        st.markdown(f"""
+        <div class="task-card" style="background-color:#dcfce7;">
+            <h1>🎉 Gratuluji!</h1>
+            <p>Lekce {current_lesson['title']} je hotová.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zpět na přehled"):
+            reset_lesson()
+            st.rerun()
+
+if __name__ == "__main__":
+    main()
