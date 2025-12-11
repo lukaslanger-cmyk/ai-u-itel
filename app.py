@@ -1,9 +1,8 @@
 import streamlit as st
-import asyncio
-import edge_tts
 from groq import Groq
 from streamlit_mic_recorder import mic_recorder
 import io
+from gtts import gTTS
 
 # --- 1. KONFIGURACE APLIKACE & CSS ---
 st.set_page_config(page_title="AI English Teacher Pro", page_icon="🎓", layout="wide")
@@ -32,7 +31,7 @@ except:
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# --- 2. SYLABUS ---
+# --- 2. PEDAGOGICKY UPRAVENÝ SYLABUS ---
 SYLLABUS_DATA = [
   {"id": 1, "title": "1. Být či nebýt? (TO BE)", "topic": "Verb TO BE (Singular: I am, You are, He is / Plural: We are, They are) + Negatives (I am not)", "goal": "Umět používat sloveso BÝT v jednotném i množném čísle a v záporu."},
   {"id": 2, "title": "2. Kde co leží? (Předložky)", "topic": "Prepositions (in, on, under, next to, behind)", "goal": "Určit polohu věcí (jedné i více)."},
@@ -49,7 +48,7 @@ TASK_TYPES = {
     5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Výzva)", "instruction": "Těžší věta. Dej si pozor na gramatiku!", "lang_rec": "en"}
 }
 
-# --- 3. FUNKCE ---
+# --- 3. JÁDRO APLIKACE ---
 
 def init_session():
     defaults = {
@@ -71,32 +70,19 @@ def reset_lesson():
     st.session_state.theory_content = None
     st.session_state.task_audio_bytes = None
 
-# --- OPRAVENÁ GENERACE AUDIA (THREAD SAFE) ---
-async def _edge_tts_generate(text, voice):
-    """Vnitřní funkce pro generování"""
-    communicate = edge_tts.Communicate(text, voice)
-    fp = io.BytesIO()
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            fp.write(chunk["data"])
-    return fp.getvalue()
-
-def generate_audio_sync(text, lang="en"):
-    """Synchronní wrapper, který bezpečně spustí async funkci v novém loopu."""
+def generate_audio_google(text, lang="en"):
+    """Generuje audio pomocí Google TTS (Stabilní verze)."""
     try:
-        voice = "en-US-AnaNeural" if lang == "en" else "cs-CZ-VlastaNeural"
-        clean = text.replace("**", "").replace("*", "").replace("`", "")
-        
-        # Vytvoření nového event loopu pro tento thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        audio_data = loop.run_until_complete(_edge_tts_generate(clean, voice))
-        loop.close()
-        
-        return audio_data
+        # Odstranění markdownu pro čisté čtení
+        clean_text = text.replace("**", "").replace("*", "").replace("`", "")
+        # Google TTS
+        tts = gTTS(text=clean_text, lang=lang, slow=False)
+        # Uložení do paměti
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        return fp.getvalue()
     except Exception as e:
-        print(f"TTS Error: {e}") # Pro debug v konzoli serveru
+        print(f"Chyba zvuku: {e}")
         return None
 
 def get_theory(lesson_data):
@@ -225,9 +211,9 @@ def main():
                 st.session_state.task_data = data
                 st.session_state.feedback = None
                 
-                # GENERUJ AUDIO - NYNÍ SYNCHRONNĚ A BEZPEČNĚ
+                # AUDIO GENERUJEME PŘES GOOGLE (STABILNÍ)
                 if data["type"] in ["listen", "imitate", "respond"]:
-                    audio_bytes = generate_audio_sync(data["primary"], "en")
+                    audio_bytes = generate_audio_google(data["primary"], "en")
                     st.session_state.task_audio_bytes = audio_bytes
                 else:
                     st.session_state.task_audio_bytes = None
