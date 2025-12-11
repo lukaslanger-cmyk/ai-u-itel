@@ -58,7 +58,7 @@ TASK_TYPES = {
     2: {"type": "imitate", "name": "🦜 Krok 2: Výslovnost (Papoušek)", "instruction": "Poslouchej a nahrej, jak to vyslovuješ (anglicky).", "lang_rec": "en"},
     3: {"type": "translate", "name": "✍️ Krok 3: Překlad (Dril)", "instruction": "Přečti si českou větu a nahrej anglický překlad.", "lang_rec": "en"},
     4: {"type": "respond", "name": "🗣️ Krok 4: Konverzace (Reakce)", "instruction": "Poslouchej otázku a nahrej anglickou odpověď.", "lang_rec": "en"},
-    5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Výzva)", "instruction": "Těžší věta. Dej si pozor na gramatiku!", "lang_rec": "en"}
+    5: {"type": "boss", "name": "🏆 Krok 5: Boss Fight (Výzva)", "instruction": "Tohle je těžší věta. Přečti si ji česky a přelož do angličtiny.", "lang_rec": "en"}
 }
 
 # --- 3. FUNKCE ---
@@ -84,11 +84,18 @@ def reset_lesson():
     st.session_state.task_audio_bytes = None
 
 def robust_text_cleaner(text):
-    """Odstraní čísla, odrážky a prefixy z vygenerované věty."""
+    """Odstraní šipky, čísla, odrážky a jazykové prefixy z vygenerované věty."""
     if not text: return ""
+    
     # Odstraní vše před dvojtečkou (např "Target: Hello")
     if ":" in text:
         text = text.split(":", 1)[1].strip()
+    
+    # NOVÉ: Odstraní jazykové prefixy "cz ->", "en ->", "cz:", "en:"
+    text = re.sub(r'\b(cz|en|cze|eng)\s*[:\->]+\s*', '', text, flags=re.IGNORECASE)
+    
+    # Odstraní šipky -> a >
+    text = text.replace("->", "").replace(">", "").strip()
     
     # Odstraní čísla na začátku (1., 2), 1 -)
     text = re.sub(r'^[\d\.\)\-\s]+', '', text)
@@ -98,12 +105,13 @@ def robust_text_cleaner(text):
     
     # Odstraní speciální znaky
     text = text.replace("*", "").replace("`", "").replace('"', "").replace("|||", "")
+    
     return text.strip()
 
 def generate_audio_google(text, lang="en"):
     """Generuje čisté audio."""
     try:
-        # Tady už text nečistíme, protože tam posíláme už vyčištěný 'task_data'
+        # Text je už vyčištěný předtím, než sem přijde
         tts = gTTS(text=text, lang=lang, slow=False)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
@@ -132,8 +140,7 @@ def generate_task_data(lesson_data, step_number):
     task_type = TASK_TYPES[step_number]["type"]
     topic = lesson_data['topic']
     
-    # Variabilita pro vyšší teplotu
-    categories = ["zvířata (cat, dog, lion)", "emoce (happy, sad)", "barvy (red, blue)", "rodina", "škola"]
+    categories = ["zvířata", "emoce", "barvy", "rodina", "škola", "jídlo", "sport"]
     category = random.choice(categories)
 
     prompt = f"""
@@ -143,15 +150,15 @@ def generate_task_data(lesson_data, step_number):
     1. NEPOUŽÍVEJ DOKOLA SLOVA "Doctor", "Teacher".
     2. Použij kategorii: {category}.
     3. Střídej osoby (I, You, We, They).
-    4. Věty musí dávat smysl (Ne: "Jsem červený", ale "Mám červené auto").
-    5. NEČÍSLUJ VĚTY. ŽÁDNÉ "1.". ŽÁDNÉ "Target:".
+    4. Věty musí dávat smysl.
+    5. NEPOUŽÍVEJ ŽÁDNÉ PREFIXY jako "cz ->" nebo "en:". Jen čistý text.
     
-    Formáty výstupu (oddělovač "|||"):
+    Formáty výstupu (přísně dodržuj oddělovač "|||"):
     LISTEN -> Anglická věta|||Český překlad
     IMITATE -> Anglická věta|||Český význam
-    TRANSLATE -> Česká věta|||Anglický překlad
+    TRANSLATE -> Česká věta|||Anglický překlad (POZOR: PRVNÍ ČÁST JE ČESKY!)
     RESPOND -> Anglická otázka|||Typ odpovědi
-    BOSS -> Česká složitější věta|||Anglický překlad
+    BOSS -> Česká složitější věta|||Anglický překlad (POZOR: PRVNÍ ČÁST JE ČESKY!)
     """
     try:
         resp = client.chat.completions.create(
@@ -169,14 +176,14 @@ def generate_task_data(lesson_data, step_number):
 
 def evaluate_student(student_text, task_data, task_type):
     lang_instruction = ""
-    target_sentence = task_data['primary'] # Default pro Imitate/Respond
+    target_sentence = task_data['primary'] 
     
     if task_type == "listen":
         lang_instruction = "Dítě má překládat do ČEŠTINY. Pokud řeklo český význam, je to SPRÁVNĚ. V češtině je 'Jsem' to samé jako 'Já jsem'. Neopravuj češtinu, pokud význam sedí."
-        target_sentence = task_data['secondary'] # Pro poslech je cílem český překlad
+        target_sentence = task_data['secondary'] 
     elif task_type == "translate" or task_type == "boss":
         lang_instruction = "Dítě má překládat do ANGLIČTINY."
-        target_sentence = task_data['secondary'] # Pro překlad je cílem anglická verze
+        target_sentence = task_data['secondary']
     else:
         lang_instruction = "Dítě má mluvit ANGLICKY."
 
@@ -190,7 +197,7 @@ def evaluate_student(student_text, task_data, task_type):
     PRAVIDLA HODNOCENÍ:
     1. {lang_instruction}
     2. Ignoruj interpunkci, velikost písmen.
-    3. Pokud je to významově správně, uznej to (např. 'Kid' místo 'Child' je OK).
+    3. Pokud je to významově správně, uznej to.
     4. Nebuď puntičkář.
     
     Výstupní formát:
@@ -292,6 +299,7 @@ def main():
                     st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
             
             elif data["type"] in ["translate", "boss"]:
+                # Tady to má být ČESKY, takže primary musí být česká věta
                 st.markdown(f"<h2 style='text-align:center; color:#2563eb'>🇨🇿 {data['primary']}</h2>", unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -315,9 +323,7 @@ def main():
                 if "VYSVĚTLENÍ:" in text:
                     expl = text.split("VYSVĚTLENÍ:")[1].split("CORRECT:")[0].strip()
                 if "CORRECT:" in text:
-                    corr_parts = text.split("CORRECT:")
-                    if len(corr_parts) > 1:
-                        corr = corr_parts[1].strip()
+                    corr = text.split("CORRECT:")[1].strip()
 
                 is_good = "Výborně" in verdict or "Dobře" in verdict or "Perfektní" in verdict
                 css_class = "fb-success" if is_good else "fb-error"
