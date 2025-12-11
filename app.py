@@ -83,18 +83,28 @@ def reset_lesson():
     st.session_state.theory_content = None
     st.session_state.task_audio_bytes = None
 
-def clean_audio_text(text):
+def robust_text_cleaner(text):
+    """Odstraní čísla, odrážky a prefixy z vygenerované věty."""
+    if not text: return ""
+    # Odstraní vše před dvojtečkou (např "Target: Hello")
     if ":" in text:
         text = text.split(":", 1)[1].strip()
-    text = re.sub(r'^(Part|Task|Step|Listen|Question)\s*\d*\s*', '', text, flags=re.IGNORECASE)
+    
+    # Odstraní čísla na začátku (1., 2), 1 -)
+    text = re.sub(r'^[\d\.\)\-\s]+', '', text)
+    
+    # Odstraní klíčová slova na začátku
+    text = re.sub(r'^(Part|Task|Step|Listen|Question|Sentence|Target)\s*\d*\s*', '', text, flags=re.IGNORECASE)
+    
+    # Odstraní speciální znaky
     text = text.replace("*", "").replace("`", "").replace('"', "").replace("|||", "")
     return text.strip()
 
 def generate_audio_google(text, lang="en"):
+    """Generuje čisté audio."""
     try:
-        clean_text = clean_audio_text(text)
-        if not clean_text: return None
-        tts = gTTS(text=clean_text, lang=lang, slow=False)
+        # Tady už text nečistíme, protože tam posíláme už vyčištěný 'task_data'
+        tts = gTTS(text=text, lang=lang, slow=False)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         return fp.getvalue()
@@ -123,19 +133,20 @@ def generate_task_data(lesson_data, step_number):
     topic = lesson_data['topic']
     
     # Variabilita pro vyšší teplotu
-    categories = ["zvířata", "emoce (happy, sad, angry)", "barvy", "členové rodiny", "místa (school, park, home)"]
+    categories = ["zvířata (cat, dog, lion)", "emoce (happy, sad)", "barvy (red, blue)", "rodina", "škola"]
     category = random.choice(categories)
 
     prompt = f"""
     Generuj KREATIVNÍ cvičení pro děti. Téma: {topic}. Typ: {task_type}.
     
-    DŮLEŽITÉ INSTRUKCE:
-    1. NEPOUŽÍVEJ DOKOLA SLOVA "Doctor", "Teacher", "Student". To je nuda.
-    2. Použij v této větě kategorii: {category}.
-    3. Střídej osoby (I, You, We, They, He, She).
-    4. Žádné úvodní řeči. Jen data.
+    INSTRUKCE:
+    1. NEPOUŽÍVEJ DOKOLA SLOVA "Doctor", "Teacher".
+    2. Použij kategorii: {category}.
+    3. Střídej osoby (I, You, We, They).
+    4. Věty musí dávat smysl (Ne: "Jsem červený", ale "Mám červené auto").
+    5. NEČÍSLUJ VĚTY. ŽÁDNÉ "1.". ŽÁDNÉ "Target:".
     
-    Formáty výstupu (přísně dodržuj oddělovač "|||"):
+    Formáty výstupu (oddělovač "|||"):
     LISTEN -> Anglická věta|||Český překlad
     IMITATE -> Anglická věta|||Český význam
     TRANSLATE -> Česká věta|||Anglický překlad
@@ -143,39 +154,49 @@ def generate_task_data(lesson_data, step_number):
     BOSS -> Česká složitější věta|||Anglický překlad
     """
     try:
-        # Teplota 0.9 pro maximální variabilitu
         resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": prompt}], temperature=0.9
         ).choices[0].message.content
+        
         parts = resp.split('|||')
-        primary = parts[0].strip()
-        primary = clean_audio_text(primary)
-        return {"primary": primary, "secondary": parts[1].strip() if len(parts)>1 else "", "type": task_type}
+        
+        # OKAMŽITÉ ČIŠTĚNÍ DAT
+        primary = robust_text_cleaner(parts[0])
+        secondary = robust_text_cleaner(parts[1]) if len(parts)>1 else ""
+        
+        return {"primary": primary, "secondary": secondary, "type": task_type}
     except: return {"primary": "Error", "secondary": "", "type": "error"}
 
 def evaluate_student(student_text, task_data, task_type):
     lang_instruction = ""
+    target_sentence = task_data['primary'] # Default pro Imitate/Respond
+    
     if task_type == "listen":
-        lang_instruction = "Dítě má překládat do ČEŠTINY. Pokud řeklo český význam, je to SPRÁVNĚ. V češtině je 'Jsem' to samé jako 'Já jsem' (nevyjádřený podmět je OK). Neopravuj češtinu, pokud význam sedí."
+        lang_instruction = "Dítě má překládat do ČEŠTINY. Pokud řeklo český význam, je to SPRÁVNĚ. V češtině je 'Jsem' to samé jako 'Já jsem'. Neopravuj češtinu, pokud význam sedí."
+        target_sentence = task_data['secondary'] # Pro poslech je cílem český překlad
+    elif task_type == "translate" or task_type == "boss":
+        lang_instruction = "Dítě má překládat do ANGLIČTINY."
+        target_sentence = task_data['secondary'] # Pro překlad je cílem anglická verze
     else:
         lang_instruction = "Dítě má mluvit ANGLICKY."
 
     prompt = f"""
     Jsi kamarádský učitel. Mluvíš přímo k dítěti (tykání).
     Úkol: {task_type}. 
-    Vzor (Target): "{task_data['primary']}" (nebo překlad "{task_data['secondary']}").
+    Cíl (Správná odpověď): "{target_sentence}".
+    Zadání (Co slyšelo/četlo): "{task_data['primary']}".
     Dítě řeklo: "{student_text}".
     
     PRAVIDLA HODNOCENÍ:
     1. {lang_instruction}
     2. Ignoruj interpunkci, velikost písmen.
-    3. Nebuď puntičkář. Pokud dítě řeklo "Jsem šťastný" místo "Já jsem šťastný", JE TO SPRÁVNĚ.
-    4. Neopravuj nesmysly (jako "učitorka").
+    3. Pokud je to významově správně, uznej to (např. 'Kid' místo 'Child' je OK).
+    4. Nebuď puntičkář.
     
     Výstupní formát:
     VERDIKT: (Výborně / Dobře / Zkus to znovu)
-    VYSVĚTLENÍ: (Tvůj komentář pro dítě)
-    CORRECT: (Správná odpověď - jen pokud udělalo chybu)
+    VYSVĚTLENÍ: (Tvůj komentář pro dítě - česky)
+    CORRECT: (Správná odpověď - jen pokud udělalo chybu, jinak prázdné)
     """
     try:
         return client.chat.completions.create(
@@ -294,7 +315,9 @@ def main():
                 if "VYSVĚTLENÍ:" in text:
                     expl = text.split("VYSVĚTLENÍ:")[1].split("CORRECT:")[0].strip()
                 if "CORRECT:" in text:
-                    corr = text.split("CORRECT:")[1].strip()
+                    corr_parts = text.split("CORRECT:")
+                    if len(corr_parts) > 1:
+                        corr = corr_parts[1].strip()
 
                 is_good = "Výborně" in verdict or "Dobře" in verdict or "Perfektní" in verdict
                 css_class = "fb-success" if is_good else "fb-error"
