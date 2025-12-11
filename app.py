@@ -19,7 +19,6 @@ st.markdown("""
     .feedback-box { padding: 20px; border-radius: 12px; margin-top: 15px; text-align: left; font-size: 1.05em; line-height: 1.6; }
     .fb-success { background-color: #dcfce7; border-left: 5px solid #22c55e; color: #14532d; }
     .fb-error { background-color: #fee2e2; border-left: 5px solid #ef4444; color: #7f1d1d; }
-    /* Zvětšení audio přehrávače */
     audio { width: 100%; margin-top: 10px; margin-bottom: 20px; }
     h1, h2, h3 { color: #1e293b; font-family: 'Segoe UI', sans-serif; }
 </style>
@@ -72,16 +71,33 @@ def reset_lesson():
     st.session_state.theory_content = None
     st.session_state.task_audio_bytes = None
 
-async def generate_audio_bytes(text, lang="en"):
+# --- OPRAVENÁ GENERACE AUDIA (THREAD SAFE) ---
+async def _edge_tts_generate(text, voice):
+    """Vnitřní funkce pro generování"""
+    communicate = edge_tts.Communicate(text, voice)
+    fp = io.BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            fp.write(chunk["data"])
+    return fp.getvalue()
+
+def generate_audio_sync(text, lang="en"):
+    """Synchronní wrapper, který bezpečně spustí async funkci v novém loopu."""
     try:
         voice = "en-US-AnaNeural" if lang == "en" else "cs-CZ-VlastaNeural"
         clean = text.replace("**", "").replace("*", "").replace("`", "")
-        communicate = edge_tts.Communicate(clean, voice)
-        fp = io.BytesIO()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio": fp.write(chunk["data"])
-        return fp.getvalue()
-    except: return None
+        
+        # Vytvoření nového event loopu pro tento thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        audio_data = loop.run_until_complete(_edge_tts_generate(clean, voice))
+        loop.close()
+        
+        return audio_data
+    except Exception as e:
+        print(f"TTS Error: {e}") # Pro debug v konzoli serveru
+        return None
 
 def get_theory(lesson_data):
     prompt = f"""
@@ -146,11 +162,10 @@ def evaluate_student(student_text, task_data, task_type):
 
 # --- 4. HLAVNÍ LOGIKA ---
 def main():
-    init_session() # Inicializace hned na začátku
+    init_session()
 
     # --- LEVÝ PANEL ---
     with st.sidebar:
-        # Použití trojitých uvozovek pro bezpečnější HTML stringy
         st.markdown("""<div class="sidebar-header">🦁 Můj profil</div>""", unsafe_allow_html=True)
         st.caption("Student: **Začátečník**")
         st.progress(st.session_state.current_lesson_index / len(SYLLABUS_DATA), text="Celkový postup")
@@ -203,16 +218,16 @@ def main():
         st.caption(f"Lekce {current_lesson['id']} • Úkol {step} z 5")
         st.progress(step/5)
 
-        # GENERUJ DATA (POKUD CHYBÍ)
+        # GENERUJ DATA
         if st.session_state.task_data is None:
             with st.spinner("Vymýšlím zadání..."):
                 data = generate_task_data(current_lesson, step)
                 st.session_state.task_data = data
                 st.session_state.feedback = None
                 
-                # GENERUJ AUDIO JEN PRO URČITÉ TYPY
+                # GENERUJ AUDIO - NYNÍ SYNCHRONNĚ A BEZPEČNĚ
                 if data["type"] in ["listen", "imitate", "respond"]:
-                    audio_bytes = asyncio.run(generate_audio_bytes(data["primary"], "en"))
+                    audio_bytes = generate_audio_sync(data["primary"], "en")
                     st.session_state.task_audio_bytes = audio_bytes
                 else:
                     st.session_state.task_audio_bytes = None
@@ -235,7 +250,6 @@ def main():
                 if st.session_state.task_audio_bytes:
                     st.audio(st.session_state.task_audio_bytes, format='audio/mp3')
                 else:
-                    # Tlačítko pro případ selhání audia
                     st.warning("Zvuk se nenačetl.")
                     if st.button("🔄 Zkusit načíst zvuk znovu"):
                         st.session_state.task_data = None
